@@ -2,13 +2,11 @@
 
 import type React from "react";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation"; // Hooks de navegação
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 
-// Removemos a prop onSearch pois agora navegaremos via URL
 export function HeroSearch() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -16,7 +14,6 @@ export function HeroSearch() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Navega para a mesma página adicionando o parâmetro de busca
     if (searchQuery.trim()) {
       router.push(`/?q=${encodeURIComponent(searchQuery)}#estoque`);
     } else {
@@ -25,38 +22,44 @@ export function HeroSearch() {
   };
 
   return (
-    <section className="relative w-full bg-[url('/motorcycle-dealership-showroom-dark.jpg')] bg-cover bg-center py-16 md:py-24">
-      <div className="absolute inset-0 bg-foreground/60" />
+    // Fundo Slate-900 (Azul Meia noite profundo)
+    <section className="relative w-full bg-slate-900 py-24 md:py-36 overflow-hidden">
+      {/* Background Pattern sutil (Opcional, para textura) */}
+      <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff33_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+      {/* Glow Dourado sutil no fundo */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-amber-500/20 blur-[120px] rounded-full pointer-events-none"></div>
+
       <div className="container relative mx-auto px-4">
-        <div className="mx-auto max-w-xl">
-          <Card className="shadow-xl">
-            <CardContent className="p-6">
-              <h1 className="mb-2 text-center text-2xl font-bold text-foreground">
-                Encontre sua moto dos sonhos
-              </h1>
-              <p className="mb-6 text-center text-muted-foreground">
-                As melhores ofertas em motos seminovas
-              </p>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Digite marca ou modelo (ex: Honda)"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-[#8B0000] text-white hover:bg-[#6B0000]"
-                >
-                  BUSCAR
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+        <div className="mx-auto max-w-3xl text-center">
+          <h1 className="mb-6 text-4xl font-bold tracking-tight text-white md:text-6xl">
+            Encontre a moto <br />
+            <span className="text-amber-500">perfeita para você</span>
+          </h1>
+          <p className="mb-10 text-lg text-slate-300 font-light">
+            Qualidade, procedência e as melhores condições do mercado premium.
+          </p>
+
+          <div className="bg-white p-2 rounded-full shadow-2xl flex items-center max-w-xl mx-auto">
+            <div className="pl-4 text-slate-400">
+              <Search className="h-5 w-5" />
+            </div>
+            <form onSubmit={handleSubmit} className="flex-1 flex">
+              <Input
+                type="text"
+                placeholder="Busque por marca ou modelo..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 h-12 border-none shadow-none focus-visible:ring-0 text-base bg-transparent placeholder:text-slate-400 text-slate-900"
+              />
+              <Button
+                type="submit"
+                className="h-12 rounded-full px-8 bg-slate-900 text-white hover:bg-slate-800 transition-all font-medium"
+              >
+                Buscar
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
     </section>

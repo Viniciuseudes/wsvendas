@@ -1,28 +1,39 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
-import "./globals.css"
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import "./globals.css";
 
-const _inter = Inter({ subsets: ["latin"] })
+// Configuração correta da fonte para carregar em todos os dispositivos
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans", // Cria a variável CSS para o Tailwind usar
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "WSVENDASMOTOS - Motos Seminovas",
-  description: "As melhores ofertas em motos seminovas. Encontre sua moto dos sonhos na WSVENDASMOTOS.",
-  generator: "v0.app",
-}
+  title: "WSVENDAS - Motos Premium",
+  description: "Qualidade, procedência e as melhores condições do mercado.",
+};
+
+// Configuração essencial para funcionar o zoom e escala no iPhone/Android
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body className="font-sans antialiased">
+    <html lang="pt-BR" className={inter.variable}>
+      <body className="font-sans antialiased bg-background text-foreground overflow-x-hidden">
         {children}
         <Analytics />
       </body>
     </html>
-  )
+  );
 }
