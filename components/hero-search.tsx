@@ -37,7 +37,8 @@ export function HeroSearch() {
             <span className="text-amber-500">perfeita para você</span>
           </h1>
           <p className="mb-10 text-lg text-slate-300 font-light">
-            Qualidade, procedência e as melhores condições do mercado premium.
+            Qualidade, procedência WSmotos (todas as motos revisdas) e os
+            melhores preços da região do araripe.
           </p>
 
           <div className="bg-white p-2 rounded-full shadow-2xl flex items-center max-w-xl mx-auto">

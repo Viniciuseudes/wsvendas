@@ -64,7 +64,7 @@ export default async function HomePage({
         <section id="estoque" className="py-12">
           <div className="container mx-auto px-4">
             <h2 className="mb-8 text-2xl font-bold text-foreground md:text-3xl">
-              Nosso Estoque ({motorcycles.length})
+              Motos Disponiveis ({motorcycles.length})
             </h2>
             <MotorcycleGrid motorcycles={motorcycles} />
           </div>

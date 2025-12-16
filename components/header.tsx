@@ -1,80 +1,101 @@
-"use client";
-
-import { useState } from "react";
-import { Menu, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import Image from "next/image";
+import { Menu } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 export function Header() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   return (
-    // Fundo branco sólido com borda sutil para clareza e elegância
-    <header className="sticky top-0 z-40 w-full border-b border-gray-100 bg-white shadow-sm">
-      <div className="container mx-auto flex h-20 items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-1 group">
-          {/* Logo Tipográfico Moderno */}
-          <span className="text-2xl font-black tracking-tighter text-slate-900 italic">
-            WS
-          </span>
-          <span className="text-2xl font-bold tracking-tight text-amber-500 group-hover:text-amber-600 transition-colors">
-            VENDAS
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+        {/* Esquerda: Logo e Nome "Compra e Vendas" */}
+        <Link
+          href="/"
+          className="flex items-center gap-3 hover:opacity-90 transition-opacity"
+        >
+          <div className="relative h-40 w-40 flex-shrink-0">
+            <Image
+              src="/logows.png"
+              alt="Logo"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+          <span className="text-sm font-medium text-muted-foreground leading-tight max-w-[100px]">
+            Compra e Vendas
           </span>
         </Link>
 
-        {/* Desktop Navigation - Texto sutil, hover elegante */}
-        <nav className="hidden items-center gap-8 md:flex">
-          {["Início", "Estoque", "Quem Somos", "Contato"].map((item) => (
-            <Link
-              key={item}
-              href={
-                item === "Início"
-                  ? "/"
-                  : `/${item.toLowerCase().replace(" ", "-")}`
-              }
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors relative after:content-[''] after:absolute after:left-0 after:bottom-[-4px] after:h-[2px] after:w-0 after:bg-amber-500 after:transition-all hover:after:w-full"
-            >
-              {item}
-            </Link>
-          ))}
+        {/* Centro/Direita: Menu Desktop (Sem botões extras) */}
+        <nav className="hidden md:flex items-center gap-8">
+          <Link
+            href="/"
+            className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+          >
+            Início
+          </Link>
+          <Link
+            href="/#estoque"
+            className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+          >
+            Motos Disponíveis
+          </Link>
+          <Link
+            href="/motos-vendidas"
+            className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+          >
+            Motos Vendidas
+          </Link>
+          <Link
+            href="/quem-somos"
+            className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+          >
+            Quem Somos
+          </Link>
         </nav>
 
-        {/* Mobile Menu Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden text-slate-900"
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-        >
-          {isMenuOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <Menu className="h-6 w-6" />
-          )}
-        </Button>
-      </div>
-
-      {/* Mobile Navigation */}
-      {isMenuOpen && (
-        <nav className="border-t border-gray-100 bg-white md:hidden absolute w-full left-0 shadow-lg">
-          <div className="container mx-auto flex flex-col p-4">
-            {["Início", "Estoque", "Quem Somos", "Contato"].map((item) => (
-              <Link
-                key={item}
-                href={
-                  item === "Início"
-                    ? "/"
-                    : `/${item.toLowerCase().replace(" ", "-")}`
-                }
-                className="py-3 text-base font-medium text-slate-600 hover:text-amber-600 border-b border-gray-50 last:border-0"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                {item}
+        {/* Menu Mobile (Hambúrguer) */}
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="md:hidden">
+              <Menu className="h-6 w-6" />
+              <span className="sr-only">Abrir menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right">
+            <SheetTitle className="text-left mb-4">Menu</SheetTitle>
+            <div className="flex flex-col gap-4">
+              <Link href="/" className="text-lg font-medium hover:text-primary">
+                Início
               </Link>
-            ))}
-          </div>
-        </nav>
-      )}
+              <Link
+                href="/#estoque"
+                className="text-lg font-medium hover:text-primary"
+              >
+                Motos Disponíveis
+              </Link>
+              <Link
+                href="/motos-vendidas"
+                className="text-lg font-medium hover:text-primary"
+              >
+                Motos Vendidas
+              </Link>
+              <Link
+                href="/quem-somos"
+                className="text-lg font-medium hover:text-primary"
+              >
+                Quem Somos
+              </Link>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
     </header>
   );
 }
