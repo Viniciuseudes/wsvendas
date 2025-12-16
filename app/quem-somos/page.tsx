@@ -27,8 +27,8 @@ export default function QuemSomosPage() {
       <Header />
 
       <main className="flex-1">
-        {/* Banner Institucional */}
-        <div className="bg-[#8B0000] py-16 text-white">
+        {/* Banner Institucional - ALTERADO PARA AZUL */}
+        <div className="bg-blue-700 py-16 text-white">
           <div className="container mx-auto px-4 text-center">
             <h1 className="text-3xl font-bold md:text-5xl">
               Tradição, Confiança e Qualidade
@@ -68,33 +68,34 @@ export default function QuemSomosPage() {
                   <strong> Região do Araripe</strong>, entregando sonhos sobre
                   duas rodas para clientes de:
                 </p>
+                {/* Ícones alterados para AMARELO (Amber-500) para identidade visual */}
                 <ul className="grid grid-cols-2 gap-2 mt-4 font-medium text-gray-800">
                   <li className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[#8B0000]" /> Araripina
+                    <MapPin className="h-4 w-4 text-amber-500" /> Araripina
                   </li>
                   <li className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[#8B0000]" /> Bodocó
+                    <MapPin className="h-4 w-4 text-amber-500" /> Bodocó
                   </li>
                   <li className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[#8B0000]" /> Trindade
+                    <MapPin className="h-4 w-4 text-amber-500" /> Trindade
                   </li>
                   <li className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[#8B0000]" /> Exu
+                    <MapPin className="h-4 w-4 text-amber-500" /> Exu
                   </li>
                   <li className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[#8B0000]" /> Timorante
+                    <MapPin className="h-4 w-4 text-amber-500" /> Timorante
                   </li>
                   <li className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[#8B0000]" /> Ipubi
+                    <MapPin className="h-4 w-4 text-amber-500" /> Ipubi
                   </li>
                 </ul>
               </div>
             </div>
 
-            {/* Diferenciais (Importante para convencer o cliente) */}
+            {/* Diferenciais */}
             <div className="grid gap-6">
               <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-primary">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-700">
                   <Wrench className="h-6 w-6" />
                 </div>
                 <h3 className="mb-2 text-xl font-bold text-gray-900">
@@ -151,21 +152,17 @@ export default function QuemSomosPage() {
             </p>
 
             <div className="overflow-hidden rounded-xl shadow-lg border border-gray-200 bg-white">
+              {/* IFRAME ATUALIZADO */}
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3958.854087134374!2d-40.0838956!3d-7.8812976!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zN8KwNTInNTIuNyJTIDQwwrAwNScwMi4wIlc!5e0!3m2!1spt-BR!2sbr!4v1633000000000!5m2!1spt-BR!2sbr"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4003.511360162517!2d-40.09028612493519!3d-7.889592792133098!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x79ff3001c3dcb7f%3A0x4f7851d0832b1b5d!2sws%20pe%C3%A7as%20e%20acess%C3%B3rios!5e1!3m2!1spt-BR!2sbr!4v1765904747077!5m2!1spt-BR!2sbr"
                 width="100%"
                 height="450"
                 style={{ border: 0 }}
-                allowFullScreen={true}
+                allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 className="w-full h-[400px] md:h-[500px]"
               ></iframe>
-              {/* Nota: O src do iframe acima é um placeholder. 
-                  Como o link que você enviou estava genérico (http://googleusercontent...), 
-                  recomendo gerar o link de "Incorporar mapa" diretamente no Google Maps 
-                  buscando pelo nome exato da sua loja para ter o pino vermelho correto.
-               */}
             </div>
 
             <div className="mt-8 grid gap-4 md:grid-cols-3 text-left max-w-4xl mx-auto bg-white p-6 rounded-lg border">

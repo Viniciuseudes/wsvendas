@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { supabase } from "@/lib/supabase";
 import { Header } from "@/components/header";
-import { ImageUpload } from "@/components/image-upload"; // Componente novo
+import { ImageUpload } from "@/components/image-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,18 +40,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Lock } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Lock,
+  ImageIcon,
+  GripVertical,
+} from "lucide-react";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import type { Motorcycle } from "@/lib/data";
+// BIBLIOTECA DE DRAG AND DROP (Compatível com Celular)
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DropResult,
+} from "@hello-pangea/dnd";
 
-// --- SCHEMA DE VALIDAÇÃO ---
+// --- SCHEMA ---
 const motorcycleSchema = z.object({
   brand: z.string().min(2, "Marca obrigatória"),
   model: z.string().min(2, "Modelo obrigatório"),
   year: z.string().regex(/^\d{4}\/\d{4}$/, "Formato AAAA/AAAA (ex: 2022/2023)"),
   km: z.coerce.number().min(0),
   price: z.coerce.number().min(1, "Preço inválido"),
-  imageUrl: z.string().min(1, "A foto é obrigatória"), // Valida se o upload foi feito
+  images: z.array(z.string()).min(1, "Pelo menos 1 foto é obrigatória"),
   transmission: z.string(),
   fuel: z.string(),
   color: z.string().min(2, "Cor obrigatória"),
@@ -62,17 +78,16 @@ const motorcycleSchema = z.object({
 type MotorcycleFormValues = z.infer<typeof motorcycleSchema>;
 
 export default function AdminPage() {
-  // --- ESTADOS DE AUTENTICAÇÃO ---
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
-
-  // --- ESTADOS DO SISTEMA ---
   const [motos, setMotos] = useState<Motorcycle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // --- REACT HOOK FORM ---
+  // Estado para garantir que o DND só carregue no cliente (evita erro de Hydration)
+  const [isMounted, setIsMounted] = useState(false);
+
   const form = useForm<MotorcycleFormValues>({
     resolver: zodResolver(motorcycleSchema),
     defaultValues: {
@@ -81,7 +96,7 @@ export default function AdminPage() {
       year: "",
       km: 0,
       price: 0,
-      imageUrl: "",
+      images: [],
       transmission: "Manual",
       fuel: "Gasolina",
       color: "",
@@ -90,11 +105,9 @@ export default function AdminPage() {
     },
   });
 
-  // --- EFEITO: CARREGAR MOTOS DO SUPABASE ---
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchMotorcycles();
-    }
+    setIsMounted(true);
+    if (isAuthenticated) fetchMotorcycles();
   }, [isAuthenticated]);
 
   async function fetchMotorcycles() {
@@ -102,18 +115,77 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from("motorcycles")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("display_order", { ascending: true });
 
     if (error) {
       toast.error("Erro ao carregar motos.");
       console.error(error);
     } else {
-      setMotos(data as Motorcycle[]);
+      const normalizedData = (data as any[]).map((item) => ({
+        ...item,
+        imageUrls: item.images || (item.image_url ? [item.image_url] : []),
+        displayOrder: item.display_order || 9999,
+        sold: item.sold || false,
+      }));
+      setMotos(normalizedData);
     }
     setIsLoading(false);
   }
 
-  // --- FUNÇÕES DE LOGIN ---
+  // --- NOVA LÓGICA DE ARRASTAR (FUNCIONA EM MOBILE) ---
+  const handleDragEnd = async (result: DropResult) => {
+    if (!result.destination) return;
+
+    // Reordenar localmente
+    const items = Array.from(motos);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    setMotos(items);
+
+    // Salvar no banco
+    try {
+      const updates = items.map((moto, index) => ({
+        id: moto.id,
+        display_order: index,
+      }));
+
+      await Promise.all(
+        updates.map((update) =>
+          supabase
+            .from("motorcycles")
+            .update({ display_order: update.display_order })
+            .eq("id", update.id)
+        )
+      );
+      toast.success("Ordem atualizada!");
+    } catch (error) {
+      console.error("Erro ao salvar ordem:", error);
+      toast.error("Erro de conexão ao salvar ordem.");
+    }
+  };
+
+  const handleToggleSold = async (moto: Motorcycle) => {
+    const newStatus = !moto.sold;
+    setMotos((prev) =>
+      prev.map((m) => (m.id === moto.id ? { ...m, sold: newStatus } : m))
+    );
+
+    const { error } = await supabase
+      .from("motorcycles")
+      .update({ sold: newStatus })
+      .eq("id", moto.id);
+
+    if (error) {
+      toast.error("Erro ao atualizar status.");
+      fetchMotorcycles();
+    } else {
+      toast.success(
+        newStatus ? "Marcada como Vendida!" : "Marcada como Disponível!"
+      );
+    }
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput === "abrobreira123") {
@@ -124,42 +196,44 @@ export default function AdminPage() {
     }
   };
 
-  // --- FUNÇÕES DE CRUD (CREATE/UPDATE/DELETE) ---
   const onSubmit = async (values: MotorcycleFormValues) => {
     try {
-      // Mapear os nomes dos campos do formulário para o banco (snake_case no banco)
+      const maxOrder = motos.reduce(
+        (max, m) => Math.max(max, m.displayOrder || 0),
+        0
+      );
       const dbData = {
         brand: values.brand,
         model: values.model,
         year: values.year,
         km: values.km,
         price: values.price,
-        image_url: values.imageUrl, // No banco é image_url
+        images: values.images,
+        image_url: values.images[0],
         transmission: values.transmission,
         fuel: values.fuel,
         color: values.color,
-        plate_end: values.plateEnd, // No banco é plate_end
+        plate_end: values.plateEnd,
         observations: values.observations,
+        display_order: editingId ? undefined : maxOrder + 1,
       };
 
+      if (editingId) delete dbData.display_order;
+
       if (editingId) {
-        // ATUALIZAR
         const { error } = await supabase
           .from("motorcycles")
           .update(dbData)
           .eq("id", editingId);
-
         if (error) throw error;
         toast.success("Moto atualizada!");
       } else {
-        // CRIAR
         const { error } = await supabase.from("motorcycles").insert(dbData);
-
         if (error) throw error;
         toast.success("Moto cadastrada!");
       }
 
-      await fetchMotorcycles(); // Recarrega a lista
+      await fetchMotorcycles();
       handleCloseDialog();
     } catch (error) {
       console.error(error);
@@ -173,10 +247,8 @@ export default function AdminPage() {
         .from("motorcycles")
         .delete()
         .eq("id", id);
-
-      if (error) {
-        toast.error("Erro ao excluir.");
-      } else {
+      if (error) toast.error("Erro ao excluir.");
+      else {
         toast.success("Moto excluída.");
         fetchMotorcycles();
       }
@@ -184,19 +256,20 @@ export default function AdminPage() {
   };
 
   const handleEdit = (moto: any) => {
-    // Use 'any' aqui temporariamente ou tipagem correta do banco
     setEditingId(moto.id);
+    const imagesList =
+      moto.imageUrls && moto.imageUrls.length > 0 ? moto.imageUrls : [];
     form.reset({
       brand: moto.brand,
       model: moto.model,
       year: moto.year,
       km: moto.km,
       price: moto.price,
-      imageUrl: moto.image_url, // Atenção ao mapeamento reverso
+      images: imagesList,
       transmission: moto.transmission,
       fuel: moto.fuel,
       color: moto.color,
-      plateEnd: moto.plate_end,
+      plateEnd: moto.plateEnd,
       observations: moto.observations || "",
     });
     setIsDialogOpen(true);
@@ -210,7 +283,7 @@ export default function AdminPage() {
       year: "",
       km: 0,
       price: 0,
-      imageUrl: "",
+      images: [],
       transmission: "Manual",
       fuel: "Gasolina",
       color: "",
@@ -225,7 +298,8 @@ export default function AdminPage() {
     form.reset();
   };
 
-  // --- RENDERIZAÇÃO: TELA DE LOGIN ---
+  if (!isMounted) return null; // Evita erro de Hydration
+
   if (!isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/20">
@@ -235,9 +309,7 @@ export default function AdminPage() {
               <Lock className="h-6 w-6 text-[#8B0000]" />
             </div>
             <h1 className="text-2xl font-bold">Área Restrita</h1>
-            <p className="text-sm text-muted-foreground">
-              Digite a senha de administrador
-            </p>
+            <p className="text-sm text-muted-foreground">Senha de admin</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
             <Input
@@ -247,10 +319,7 @@ export default function AdminPage() {
               onChange={(e) => setPasswordInput(e.target.value)}
               className="text-center"
             />
-            <Button
-              type="submit"
-              className="w-full bg-[#8B0000] hover:bg-[#6B0000] text-white"
-            >
+            <Button type="submit" className="w-full bg-[#8B0000] text-white">
               Entrar
             </Button>
           </form>
@@ -259,11 +328,9 @@ export default function AdminPage() {
     );
   }
 
-  // --- RENDERIZAÇÃO: PAINEL ADMINISTRATIVO ---
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-
       <main className="flex-1 py-8">
         <div className="container mx-auto px-4">
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -272,353 +339,395 @@ export default function AdminPage() {
                 Painel Administrativo
               </h1>
               <p className="text-muted-foreground">
-                {motos.length} motos cadastradas no sistema
+                {motos.length} motos registradas
               </p>
             </div>
-
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  onClick={handleOpenNewDialog}
-                  className="bg-[#8B0000] hover:bg-[#6B0000] text-white"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova Moto
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingId ? "Editar Moto" : "Cadastrar Nova Moto"}
-                  </DialogTitle>
-                </DialogHeader>
-
-                <Form {...form}>
-                  <form
-                    onSubmit={form.handleSubmit(onSubmit)}
-                    className="space-y-6"
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => window.open("/vendidas", "_blank")}
+              >
+                Ver Pág. Vendidas
+              </Button>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={handleOpenNewDialog}
+                    className="bg-[#8B0000] text-white"
                   >
-                    {/* Componente de Upload de Imagem */}
-                    <FormField
-                      control={form.control}
-                      name="imageUrl"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Foto da Moto</FormLabel>
-                          <FormControl>
-                            <ImageUpload
-                              value={field.value}
-                              onChange={field.onChange}
-                              disabled={form.formState.isSubmitting}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <Plus className="mr-2 h-4 w-4" /> Nova Moto
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingId ? "Editar Moto" : "Cadastrar Nova Moto"}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form
+                      onSubmit={form.handleSubmit(onSubmit)}
+                      className="space-y-6"
+                    >
                       <FormField
                         control={form.control}
-                        name="brand"
+                        name="images"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Marca</FormLabel>
+                            <FormLabel>Galeria de Fotos</FormLabel>
                             <FormControl>
-                              <Input placeholder="Ex: Honda" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="model"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Modelo</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Ex: XRE 300" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="year"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Ano</FormLabel>
-                            <FormControl>
-                              <Input placeholder="2022/2022" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="km"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Quilometragem</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="0" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="price"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Preço (R$)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="0.00"
-                                {...field}
+                              <ImageUpload
+                                value={field.value}
+                                onChange={field.onChange}
+                                disabled={form.formState.isSubmitting}
                               />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="brand"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Marca</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Ex: Honda" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="model"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Modelo</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Ex: XRE 300" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      {/* Outros campos mantidos iguais... */}
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="year"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Ano</FormLabel>
+                              <FormControl>
+                                <Input placeholder="2022/2022" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="km"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>KM</FormLabel>
+                              <FormControl>
+                                <Input type="number" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="price"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Preço</FormLabel>
+                              <FormControl>
+                                <Input type="number" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="plateEnd"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Final Placa</FormLabel>
+                              <FormControl>
+                                <Input maxLength={1} {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="transmission"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Transmissão</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                value={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="Manual">Manual</SelectItem>
+                                  <SelectItem value="Automática">
+                                    Automática
+                                  </SelectItem>
+                                  <SelectItem value="Semi-automática">
+                                    Semi-automática
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="fuel"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Combustível</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                value={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="Gasolina">
+                                    Gasolina
+                                  </SelectItem>
+                                  <SelectItem value="Flex">Flex</SelectItem>
+                                  <SelectItem value="Elétrica">
+                                    Elétrica
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                       <FormField
                         control={form.control}
-                        name="plateEnd"
+                        name="color"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Final da Placa</FormLabel>
+                            <FormLabel>Cor</FormLabel>
                             <FormControl>
-                              <Input
-                                placeholder="Ex: 5"
-                                maxLength={1}
-                                {...field}
-                              />
+                              <Input placeholder="Ex: Vermelha" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
                       <FormField
                         control={form.control}
-                        name="transmission"
+                        name="observations"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Transmissão</FormLabel>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              value={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="Manual">Manual</SelectItem>
-                                <SelectItem value="Automática">
-                                  Automática
-                                </SelectItem>
-                                <SelectItem value="Semi-automática">
-                                  Semi-automática
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <FormLabel>Observações</FormLabel>
+                            <FormControl>
+                              <Textarea className="resize-none" {...field} />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="fuel"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Combustível</FormLabel>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              value={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="Gasolina">
-                                  Gasolina
-                                </SelectItem>
-                                <SelectItem value="Flex">Flex</SelectItem>
-                                <SelectItem value="Elétrica">
-                                  Elétrica
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="color"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cor</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Ex: Vermelha" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="observations"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Observações</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Detalhes adicionais..."
-                              className="resize-none"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="flex gap-3 pt-4">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={handleCloseDialog}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        type="submit"
-                        className="flex-1 bg-[#8B0000] hover:bg-[#6B0000] text-white"
-                        disabled={form.formState.isSubmitting}
-                      >
-                        {form.formState.isSubmitting
-                          ? "Salvando..."
-                          : editingId
-                          ? "Salvar Alterações"
-                          : "Cadastrar Moto"}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
+                      <div className="flex gap-3 pt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={handleCloseDialog}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="flex-1 bg-[#8B0000] text-white"
+                          disabled={form.formState.isSubmitting}
+                        >
+                          {form.formState.isSubmitting
+                            ? "Salvando..."
+                            : editingId
+                            ? "Salvar"
+                            : "Cadastrar"}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           <div className="rounded-lg border border-border bg-card shadow-sm">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Foto</TableHead>
-                    <TableHead>Moto</TableHead>
-                    <TableHead className="hidden sm:table-cell">Ano</TableHead>
-                    <TableHead>Preço</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
-                        Carregando...
-                      </TableCell>
+                      <TableHead className="w-[50px]"></TableHead>
+                      <TableHead>Foto</TableHead>
+                      <TableHead>Moto</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Preço</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
-                  ) : motos.length > 0 ? (
-                    motos.map((moto: any) => (
-                      <TableRow key={moto.id}>
-                        <TableCell>
-                          <div className="relative h-10 w-16 overflow-hidden rounded bg-muted">
-                            {moto.image_url ? (
-                              <img
-                                src={moto.image_url}
-                                alt=""
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-xs">
-                                Sem foto
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">
-                            {moto.brand} {moto.model}
-                          </div>
-                          <div className="text-xs text-muted-foreground sm:hidden">
-                            {moto.year}
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          {moto.year}
-                        </TableCell>
-                        <TableCell className="font-medium text-[#8B0000]">
-                          {new Intl.NumberFormat("pt-BR", {
-                            style: "currency",
-                            currency: "BRL",
-                          }).format(moto.price)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(moto)}
+                  </TableHeader>
+                  <Droppable droppableId="motos-list">
+                    {(provided) => (
+                      <TableBody
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                      >
+                        {isLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="h-24 text-center">
+                              Carregando...
+                            </TableCell>
+                          </TableRow>
+                        ) : motos.length > 0 ? (
+                          motos.map((moto: any, index) => (
+                            <Draggable
+                              key={moto.id}
+                              draggableId={moto.id}
+                              index={index}
                             >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(moto.id)}
-                              className="text-destructive hover:bg-destructive/10"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
-                        Nenhuma moto cadastrada.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                              {(provided, snapshot) => (
+                                <TableRow
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  className={`transition-colors ${
+                                    moto.sold
+                                      ? "bg-red-50 hover:bg-red-100"
+                                      : "hover:bg-slate-50"
+                                  } ${
+                                    snapshot.isDragging
+                                      ? "bg-blue-50 shadow-lg"
+                                      : ""
+                                  }`}
+                                >
+                                  <TableCell {...provided.dragHandleProps}>
+                                    <div className="cursor-grab active:cursor-grabbing text-slate-400 p-2 touch-none">
+                                      <GripVertical className="h-5 w-5" />
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="relative h-10 w-16 overflow-hidden rounded bg-muted">
+                                      {moto.imageUrls &&
+                                      moto.imageUrls.length > 0 ? (
+                                        <img
+                                          src={moto.imageUrls[0]}
+                                          alt=""
+                                          className="h-full w-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                                          <ImageIcon className="h-4 w-4" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="font-medium">
+                                      {moto.brand} {moto.model}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {moto.year}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <Switch
+                                        checked={moto.sold}
+                                        onCheckedChange={() =>
+                                          handleToggleSold(moto)
+                                        }
+                                      />
+                                      <Badge
+                                        variant={
+                                          moto.sold ? "destructive" : "outline"
+                                        }
+                                        className={
+                                          moto.sold
+                                            ? ""
+                                            : "text-green-600 border-green-200 bg-green-50"
+                                        }
+                                      >
+                                        {moto.sold ? "Vendida" : "Disponível"}
+                                      </Badge>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="font-medium">
+                                    {new Intl.NumberFormat("pt-BR", {
+                                      style: "currency",
+                                      currency: "BRL",
+                                    }).format(moto.price)}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleEdit(moto)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleDelete(moto.id)}
+                                        className="text-destructive hover:bg-destructive/10"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </Draggable>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="h-24 text-center">
+                              Nenhuma moto cadastrada.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {provided.placeholder}
+                      </TableBody>
+                    )}
+                  </Droppable>
+                </Table>
+              </div>
+            </DragDropContext>
           </div>
         </div>
       </main>

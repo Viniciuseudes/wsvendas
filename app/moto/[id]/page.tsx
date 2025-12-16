@@ -1,65 +1,123 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata, ResolvingMetadata } from "next"; // Importante para o SEO/Preview
 import {
-  ArrowLeft,
   Calendar,
   Gauge,
-  Settings,
-  Fuel,
-  Palette,
-  CreditCard,
+  FileText,
+  ChevronLeft,
+  MessageCircle,
+  Phone,
+  Ban,
 } from "lucide-react";
+
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
-import { WhatsAppFloat } from "@/components/whatsapp-float";
-import { StickyActionBar } from "@/components/sticky-action-bar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 import { supabase } from "@/lib/supabase";
-import { Motorcycle } from "@/lib/data";
+import type { Motorcycle } from "@/lib/data";
+import { ShareButton } from "@/components/share-button";
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
+export const revalidate = 0;
 
-async function getMotorcycle(id: string) {
+// Função auxiliar para buscar os dados (reutilizada no Page e no Metadata)
+async function getMotorcycle(id: string): Promise<Motorcycle | null> {
   const { data, error } = await supabase
     .from("motorcycles")
-    .select(
-      `
-      id,
-      brand,
-      model,
-      year,
-      km,
-      price,
-      imageUrl:image_url,
-      transmission,
-      fuel,
-      color,
-      plateEnd:plate_end,
-      observations
-    `
-    )
+    .select("*")
     .eq("id", id)
     .single();
 
-  if (error || !data) {
-    return null;
+  if (error || !data) return null;
+
+  let images: string[] = [];
+  if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+    images = data.images;
+  } else if (data.image_url) {
+    images = [data.image_url];
   }
 
-  return data as Motorcycle;
+  return {
+    id: data.id,
+    brand: data.brand,
+    model: data.model,
+    year: data.year,
+    km: data.km,
+    price: data.price,
+    imageUrls: images,
+    transmission: data.transmission,
+    fuel: data.fuel,
+    color: data.color,
+    plateEnd: data.plate_end,
+    observations: data.observations,
+    sold: data.sold || false,
+    displayOrder: data.display_order || 0,
+  };
 }
 
-export default async function MotorcycleDetailPage({ params }: PageProps) {
+// --- AQUI ESTÁ A MÁGICA DO PREVIEW (WHATSAPP/INSTAGRAM) ---
+export async function generateMetadata(
+  { params }: { params: Promise<{ id: string }> },
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const { id } = await params;
+  const moto = await getMotorcycle(id);
+
+  if (!moto) {
+    return {
+      title: "Moto não encontrada | WS Vendas",
+    };
+  }
+
+  const price = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(moto.price);
+
+  const title = `${moto.brand} ${moto.model} - ${price}`;
+  const description = `${moto.year} • ${moto.km}km • ${moto.color}. ${
+    moto.observations || "Confira os detalhes dessa moto incrível!"
+  }`;
+  const mainImage = moto.imageUrls[0] || "/placeholder.jpg"; // Garante que tenha imagem
+
+  return {
+    title: title,
+    description: description,
+    openGraph: {
+      title: title,
+      description: description,
+      images: [mainImage], // Essa é a foto que aparece no WhatsApp
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: title,
+      description: description,
+      images: [mainImage],
+    },
+  };
+}
+
+// --- PÁGINA PRINCIPAL ---
+export default async function MotoPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const motorcycle = await getMotorcycle(id);
 
-  if (!motorcycle) {
-    notFound();
-  }
+  if (!motorcycle) return notFound();
 
   const formattedPrice = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -68,129 +126,193 @@ export default async function MotorcycleDetailPage({ params }: PageProps) {
 
   const formattedKm = new Intl.NumberFormat("pt-BR").format(motorcycle.km);
 
-  const specs = [
-    { icon: Calendar, label: "Ano", value: motorcycle.year },
-    { icon: Gauge, label: "Km", value: `${formattedKm} km` },
-    { icon: Settings, label: "Câmbio", value: motorcycle.transmission },
-    { icon: Fuel, label: "Combustível", value: motorcycle.fuel },
-    { icon: Palette, label: "Cor", value: motorcycle.color },
-    { icon: CreditCard, label: "Final da Placa", value: motorcycle.plateEnd },
-  ];
-
-  const motorcycleName = `${motorcycle.brand} ${motorcycle.model} ${motorcycle.year}`;
-
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Header />
 
-      <main className="flex-1 pb-24 md:pb-12 pt-6">
+      <main className="flex-1 py-8">
         <div className="container mx-auto px-4">
-          <Button
-            asChild
-            variant="ghost"
-            className="mb-6 hover:text-primary hover:bg-blue-50"
-          >
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar ao estoque
+          <div className="mb-6 flex items-center justify-between">
+            <Link
+              href="/"
+              className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Voltar para o estoque
             </Link>
-          </Button>
+
+            {/* Passamos os dados completos para o botão */}
+            <ShareButton
+              title={`${motorcycle.brand} ${motorcycle.model}`}
+              text={`Olha essa máquina que vi na WS Vendas: ${motorcycle.model} por ${formattedPrice}`}
+            />
+          </div>
 
           <div className="grid gap-8 lg:grid-cols-2">
-            {/* Image Section */}
-            <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-white shadow-sm border border-border">
-              {motorcycle.imageUrl ? (
-                <Image
-                  src={motorcycle.imageUrl}
-                  alt={`${motorcycle.brand} ${motorcycle.model}`}
-                  fill
-                  className="object-cover"
-                  priority
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gray-100">
-                  <span className="text-gray-400 font-medium">
+            {/* CARROSSEL DE FOTOS */}
+            <div className="space-y-4">
+              <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-gray-100 relative">
+                {motorcycle.sold && (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-[2px]">
+                    <Badge className="text-xl px-6 py-2 bg-red-600 border-2 border-white shadow-2xl uppercase tracking-widest font-black -rotate-12">
+                      VENDIDA
+                    </Badge>
+                  </div>
+                )}
+
+                {motorcycle.imageUrls.length > 0 ? (
+                  <Carousel className="w-full">
+                    <CarouselContent>
+                      {motorcycle.imageUrls.map((img, index) => (
+                        <CarouselItem key={index}>
+                          <div className="relative aspect-[4/3] w-full bg-gray-100">
+                            <Image
+                              src={img}
+                              alt={`${motorcycle.model} - Foto ${index + 1}`}
+                              fill
+                              className="object-cover"
+                              priority={index === 0}
+                            />
+                          </div>
+                        </CarouselItem>
+                      ))}
+                    </CarouselContent>
+                    {motorcycle.imageUrls.length > 1 && (
+                      <>
+                        <CarouselPrevious className="left-2 opacity-70 hover:opacity-100 z-30" />
+                        <CarouselNext className="right-2 opacity-70 hover:opacity-100 z-30" />
+                      </>
+                    )}
+                  </Carousel>
+                ) : (
+                  <div className="flex aspect-[4/3] items-center justify-center bg-gray-100 text-muted-foreground">
                     Sem imagem disponível
-                  </span>
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
+
+              <p className="text-center text-sm text-gray-500">
+                {motorcycle.imageUrls.length} fotos disponíveis - Deslize para
+                ver mais
+              </p>
             </div>
 
-            {/* Details Section */}
-            <div className="space-y-8">
+            {/* INFORMAÇÕES */}
+            <div className="flex flex-col space-y-6">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">
+                  <Badge
+                    variant="outline"
+                    className="border-primary/20 text-primary bg-primary/5"
+                  >
                     {motorcycle.brand}
-                  </span>
+                  </Badge>
+                  {motorcycle.sold && (
+                    <Badge variant="destructive">Indisponível</Badge>
+                  )}
                 </div>
-                <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
+
+                <h1 className="text-3xl font-bold text-gray-900 lg:text-4xl">
                   {motorcycle.model}
                 </h1>
-                <p className="mt-4 text-5xl font-black text-primary tracking-tight">
-                  {formattedPrice}
-                </p>
+
+                {motorcycle.sold ? (
+                  <p className="mt-2 text-2xl font-bold text-muted-foreground line-through decoration-red-500">
+                    {formattedPrice}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-3xl font-bold text-blue-700">
+                    {formattedPrice}
+                  </p>
+                )}
               </div>
+
+              {motorcycle.sold ? (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-lg text-center text-red-800">
+                  <Ban className="mx-auto h-6 w-6 mb-2 text-red-600" />
+                  <p className="font-bold">Esta moto já foi vendida.</p>
+                  <p className="text-sm">
+                    Entre em contato para saber sobre modelos similares.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    size="lg"
+                    className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-md"
+                    asChild
+                  >
+                    <Link
+                      href={`https://wa.me/5587992057899?text=Olá, tenho interesse na ${motorcycle.brand} ${motorcycle.model} anunciada por ${formattedPrice}`}
+                      target="_blank"
+                    >
+                      <MessageCircle className="h-5 w-5" />
+                      Negociar no WhatsApp
+                    </Link>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full gap-2 border-gray-300"
+                    asChild
+                  >
+                    <Link href="tel:+5587992057899">
+                      <Phone className="h-5 w-5" />
+                      Ligar Agora
+                    </Link>
+                  </Button>
+                </div>
+              )}
 
               <Separator />
 
-              {/* Specs Grid */}
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                {specs.map((spec) => (
-                  <div
-                    key={spec.label}
-                    className="bg-white p-4 rounded-xl border border-border shadow-sm flex flex-col items-center text-center gap-2 transition-all hover:border-primary/30 hover:shadow-md"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-primary">
-                      <spec.icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        {spec.label}
-                      </p>
-                      <p className="font-semibold text-gray-900 mt-0.5">
-                        {spec.value}
-                      </p>
-                    </div>
+              <div className="grid grid-cols-2 gap-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Ano</span>
+                  <div className="flex items-center font-medium">
+                    <Calendar className="mr-2 h-4 w-4 text-primary" />
+                    {motorcycle.year}
                   </div>
-                ))}
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">
+                    Quilometragem
+                  </span>
+                  <div className="flex items-center font-medium">
+                    <Gauge className="mr-2 h-4 w-4 text-primary" />
+                    {formattedKm} km
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Câmbio</span>
+                  <p className="font-medium">{motorcycle.transmission}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">
+                    Combustível
+                  </span>
+                  <p className="font-medium">{motorcycle.fuel}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Cor</span>
+                  <p className="font-medium">{motorcycle.color}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">
+                    Final da Placa
+                  </span>
+                  <p className="font-medium">{motorcycle.plateEnd}</p>
+                </div>
               </div>
 
-              {/* Observations */}
-              <Card className="bg-blue-50/50 border-blue-100">
-                <CardContent className="p-6">
-                  <h2 className="mb-3 text-lg font-bold text-gray-900 flex items-center gap-2">
-                    Observações
-                  </h2>
-                  <p className="text-gray-700 leading-relaxed">
-                    {motorcycle.observations ||
-                      "Nenhuma observação adicional sobre esta moto."}
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Desktop Action Buttons */}
-              <div className="hidden gap-4 md:flex">
-                <Button
-                  asChild
-                  className="flex-1 h-14 text-lg bg-[#25D366] hover:bg-[#1fb855] text-white font-bold shadow-lg shadow-green-200 transition-all hover:-translate-y-1"
-                >
-                  <a
-                    href={`https://wa.me/5587992057899?text=${encodeURIComponent(
-                      `Olá! Tenho interesse na ${motorcycleName} - ${formattedPrice}`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Negociar no WhatsApp
-                  </a>
-                </Button>
-                <Button
-                  asChild
-                  className="flex-1 h-14 text-lg bg-primary hover:bg-blue-800 text-white font-bold shadow-lg shadow-blue-200 transition-all hover:-translate-y-1"
-                >
-                  <a href="tel:+5587992057899">Ligar Agora</a>
-                </Button>
+              <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 font-semibold text-gray-900">
+                  <FileText className="h-5 w-5 text-primary" />
+                  Observações
+                </div>
+                <p className="text-sm leading-relaxed text-gray-600">
+                  {motorcycle.observations}
+                </p>
               </div>
             </div>
           </div>
@@ -198,8 +320,6 @@ export default async function MotorcycleDetailPage({ params }: PageProps) {
       </main>
 
       <Footer />
-      <WhatsAppFloat />
-      <StickyActionBar motorcycleName={motorcycleName} />
     </div>
   );
 }
