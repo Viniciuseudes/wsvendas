@@ -1,97 +1,265 @@
-"use client"
+"use client";
 
-import type React from "react"
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { supabase } from "@/lib/supabase";
+import { Header } from "@/components/header";
+import { ImageUpload } from "@/components/image-upload"; // Componente novo
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Pencil, Trash2, Lock } from "lucide-react";
+import { toast } from "sonner";
+import type { Motorcycle } from "@/lib/data";
 
-import { useState } from "react"
-import { Header } from "@/components/header"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Pencil, Trash2 } from "lucide-react"
-import type { Motorcycle } from "@/lib/data"
-import { motorcycles as initialMotorcycles } from "@/lib/data"
+// --- SCHEMA DE VALIDAÇÃO ---
+const motorcycleSchema = z.object({
+  brand: z.string().min(2, "Marca obrigatória"),
+  model: z.string().min(2, "Modelo obrigatório"),
+  year: z.string().regex(/^\d{4}\/\d{4}$/, "Formato AAAA/AAAA (ex: 2022/2023)"),
+  km: z.coerce.number().min(0),
+  price: z.coerce.number().min(1, "Preço inválido"),
+  imageUrl: z.string().min(1, "A foto é obrigatória"), // Valida se o upload foi feito
+  transmission: z.string(),
+  fuel: z.string(),
+  color: z.string().min(2, "Cor obrigatória"),
+  plateEnd: z.string().length(1, "Apenas 1 dígito"),
+  observations: z.string().optional(),
+});
 
-type MotorcycleForm = Omit<Motorcycle, "id">
-
-const emptyForm: MotorcycleForm = {
-  brand: "",
-  model: "",
-  year: "",
-  km: 0,
-  price: 0,
-  imageUrl: "",
-  transmission: "Manual",
-  fuel: "Gasolina",
-  color: "",
-  plateEnd: "",
-  observations: "",
-}
+type MotorcycleFormValues = z.infer<typeof motorcycleSchema>;
 
 export default function AdminPage() {
-  const [motos, setMotos] = useState<Motorcycle[]>(initialMotorcycles)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<MotorcycleForm>(emptyForm)
+  // --- ESTADOS DE AUTENTICAÇÃO ---
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setForm((prev) => ({
-      ...prev,
-      [name]: name === "km" || name === "price" ? Number(value) : value,
-    }))
-  }
+  // --- ESTADOS DO SISTEMA ---
+  const [motos, setMotos] = useState<Motorcycle[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  // --- REACT HOOK FORM ---
+  const form = useForm<MotorcycleFormValues>({
+    resolver: zodResolver(motorcycleSchema),
+    defaultValues: {
+      brand: "",
+      model: "",
+      year: "",
+      km: 0,
+      price: 0,
+      imageUrl: "",
+      transmission: "Manual",
+      fuel: "Gasolina",
+      color: "",
+      plateEnd: "",
+      observations: "",
+    },
+  });
 
-    if (editingId) {
-      setMotos((prev) => prev.map((moto) => (moto.id === editingId ? { ...form, id: editingId } : moto)))
-    } else {
-      const newMoto: Motorcycle = {
-        ...form,
-        id: Date.now().toString(),
-      }
-      setMotos((prev) => [...prev, newMoto])
+  // --- EFEITO: CARREGAR MOTOS DO SUPABASE ---
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchMotorcycles();
     }
+  }, [isAuthenticated]);
 
-    setForm(emptyForm)
-    setEditingId(null)
-    setIsDialogOpen(false)
+  async function fetchMotorcycles() {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from("motorcycles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast.error("Erro ao carregar motos.");
+      console.error(error);
+    } else {
+      setMotos(data as Motorcycle[]);
+    }
+    setIsLoading(false);
   }
 
-  const handleEdit = (moto: Motorcycle) => {
-    setEditingId(moto.id)
-    setForm({
+  // --- FUNÇÕES DE LOGIN ---
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === "abrobreira123") {
+      setIsAuthenticated(true);
+      toast.success("Bem-vindo ao Painel!");
+    } else {
+      toast.error("Senha incorreta.");
+    }
+  };
+
+  // --- FUNÇÕES DE CRUD (CREATE/UPDATE/DELETE) ---
+  const onSubmit = async (values: MotorcycleFormValues) => {
+    try {
+      // Mapear os nomes dos campos do formulário para o banco (snake_case no banco)
+      const dbData = {
+        brand: values.brand,
+        model: values.model,
+        year: values.year,
+        km: values.km,
+        price: values.price,
+        image_url: values.imageUrl, // No banco é image_url
+        transmission: values.transmission,
+        fuel: values.fuel,
+        color: values.color,
+        plate_end: values.plateEnd, // No banco é plate_end
+        observations: values.observations,
+      };
+
+      if (editingId) {
+        // ATUALIZAR
+        const { error } = await supabase
+          .from("motorcycles")
+          .update(dbData)
+          .eq("id", editingId);
+
+        if (error) throw error;
+        toast.success("Moto atualizada!");
+      } else {
+        // CRIAR
+        const { error } = await supabase.from("motorcycles").insert(dbData);
+
+        if (error) throw error;
+        toast.success("Moto cadastrada!");
+      }
+
+      await fetchMotorcycles(); // Recarrega a lista
+      handleCloseDialog();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao salvar moto.");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Tem certeza que deseja excluir esta moto?")) {
+      const { error } = await supabase
+        .from("motorcycles")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        toast.error("Erro ao excluir.");
+      } else {
+        toast.success("Moto excluída.");
+        fetchMotorcycles();
+      }
+    }
+  };
+
+  const handleEdit = (moto: any) => {
+    // Use 'any' aqui temporariamente ou tipagem correta do banco
+    setEditingId(moto.id);
+    form.reset({
       brand: moto.brand,
       model: moto.model,
       year: moto.year,
       km: moto.km,
       price: moto.price,
-      imageUrl: moto.imageUrl,
+      imageUrl: moto.image_url, // Atenção ao mapeamento reverso
       transmission: moto.transmission,
       fuel: moto.fuel,
       color: moto.color,
-      plateEnd: moto.plateEnd,
-      observations: moto.observations,
-    })
-    setIsDialogOpen(true)
-  }
-
-  const handleDelete = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir esta moto?")) {
-      setMotos((prev) => prev.filter((moto) => moto.id !== id))
-    }
-  }
+      plateEnd: moto.plate_end,
+      observations: moto.observations || "",
+    });
+    setIsDialogOpen(true);
+  };
 
   const handleOpenNewDialog = () => {
-    setEditingId(null)
-    setForm(emptyForm)
-    setIsDialogOpen(true)
+    setEditingId(null);
+    form.reset({
+      brand: "",
+      model: "",
+      year: "",
+      km: 0,
+      price: 0,
+      imageUrl: "",
+      transmission: "Manual",
+      fuel: "Gasolina",
+      color: "",
+      plateEnd: "",
+      observations: "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    form.reset();
+  };
+
+  // --- RENDERIZAÇÃO: TELA DE LOGIN ---
+  if (!isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/20">
+        <div className="w-full max-w-md rounded-lg border bg-background p-8 shadow-lg">
+          <div className="mb-6 flex flex-col items-center gap-2 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <Lock className="h-6 w-6 text-[#8B0000]" />
+            </div>
+            <h1 className="text-2xl font-bold">Área Restrita</h1>
+            <p className="text-sm text-muted-foreground">
+              Digite a senha de administrador
+            </p>
+          </div>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <Input
+              type="password"
+              placeholder="Senha"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              className="text-center"
+            />
+            <Button
+              type="submit"
+              className="w-full bg-[#8B0000] hover:bg-[#6B0000] text-white"
+            >
+              Entrar
+            </Button>
+          </form>
+        </div>
+      </div>
+    );
   }
 
+  // --- RENDERIZAÇÃO: PAINEL ADMINISTRATIVO ---
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
@@ -100,256 +268,360 @@ export default function AdminPage() {
         <div className="container mx-auto px-4">
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground md:text-3xl">Painel Administrativo</h1>
-              <p className="text-muted-foreground">Gerencie o estoque de motos</p>
+              <h1 className="text-2xl font-bold text-foreground md:text-3xl">
+                Painel Administrativo
+              </h1>
+              <p className="text-muted-foreground">
+                {motos.length} motos cadastradas no sistema
+              </p>
             </div>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={handleOpenNewDialog} className="bg-[#8B0000] hover:bg-[#6B0000] text-white">
+                <Button
+                  onClick={handleOpenNewDialog}
+                  className="bg-[#8B0000] hover:bg-[#6B0000] text-white"
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Nova Moto
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>{editingId ? "Editar Moto" : "Cadastrar Nova Moto"}</DialogTitle>
+                  <DialogTitle>
+                    {editingId ? "Editar Moto" : "Cadastrar Nova Moto"}
+                  </DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="brand">Marca</Label>
-                      <Input
-                        id="brand"
-                        name="brand"
-                        value={form.brand}
-                        onChange={handleInputChange}
-                        placeholder="Ex: Honda"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="model">Modelo</Label>
-                      <Input
-                        id="model"
-                        name="model"
-                        value={form.model}
-                        onChange={handleInputChange}
-                        placeholder="Ex: XRE 300"
-                        required
-                      />
-                    </div>
-                  </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="year">Ano</Label>
-                      <Input
-                        id="year"
-                        name="year"
-                        value={form.year}
-                        onChange={handleInputChange}
-                        placeholder="Ex: 2022/2022"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="km">Quilometragem</Label>
-                      <Input
-                        id="km"
-                        name="km"
-                        type="number"
-                        value={form.km}
-                        onChange={handleInputChange}
-                        placeholder="Ex: 15000"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Preço (R$)</Label>
-                      <Input
-                        id="price"
-                        name="price"
-                        type="number"
-                        value={form.price}
-                        onChange={handleInputChange}
-                        placeholder="Ex: 28990"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="color">Cor</Label>
-                      <Input
-                        id="color"
-                        name="color"
-                        value={form.color}
-                        onChange={handleInputChange}
-                        placeholder="Ex: Vermelha"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="transmission">Transmissão</Label>
-                      <select
-                        id="transmission"
-                        name="transmission"
-                        value={form.transmission}
-                        onChange={handleInputChange}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                      >
-                        <option value="Manual">Manual</option>
-                        <option value="Automática">Automática</option>
-                        <option value="Semi-automática">Semi-automática</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="fuel">Combustível</Label>
-                      <select
-                        id="fuel"
-                        name="fuel"
-                        value={form.fuel}
-                        onChange={handleInputChange}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                      >
-                        <option value="Gasolina">Gasolina</option>
-                        <option value="Flex">Flex</option>
-                        <option value="Elétrica">Elétrica</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="plateEnd">Final da Placa</Label>
-                      <Input
-                        id="plateEnd"
-                        name="plateEnd"
-                        value={form.plateEnd}
-                        onChange={handleInputChange}
-                        placeholder="Ex: 5"
-                        maxLength={1}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="imageUrl">URL da Imagem</Label>
-                      <Input
-                        id="imageUrl"
-                        name="imageUrl"
-                        value={form.imageUrl}
-                        onChange={handleInputChange}
-                        placeholder="Ex: /minha-moto.jpg"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="observations">Observações</Label>
-                    <Textarea
-                      id="observations"
-                      name="observations"
-                      value={form.observations}
-                      onChange={handleInputChange}
-                      placeholder="Ex: Sem sinistro, sem leilão. Único dono..."
-                      rows={3}
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="space-y-6"
+                  >
+                    {/* Componente de Upload de Imagem */}
+                    <FormField
+                      control={form.control}
+                      name="imageUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Foto da Moto</FormLabel>
+                          <FormControl>
+                            <ImageUpload
+                              value={field.value}
+                              onChange={field.onChange}
+                              disabled={form.formState.isSubmitting}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                  </div>
 
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1 bg-transparent"
-                      onClick={() => setIsDialogOpen(false)}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button type="submit" className="flex-1 bg-[#8B0000] hover:bg-[#6B0000] text-white">
-                      {editingId ? "Salvar Alterações" : "Cadastrar Moto"}
-                    </Button>
-                  </div>
-                </form>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="brand"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Marca</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ex: Honda" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="model"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Modelo</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ex: XRE 300" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="year"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Ano</FormLabel>
+                            <FormControl>
+                              <Input placeholder="2022/2022" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="km"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Quilometragem</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="0" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="price"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Preço (R$)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="0.00"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="plateEnd"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Final da Placa</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Ex: 5"
+                                maxLength={1}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="transmission"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Transmissão</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="Manual">Manual</SelectItem>
+                                <SelectItem value="Automática">
+                                  Automática
+                                </SelectItem>
+                                <SelectItem value="Semi-automática">
+                                  Semi-automática
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="fuel"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Combustível</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="Gasolina">
+                                  Gasolina
+                                </SelectItem>
+                                <SelectItem value="Flex">Flex</SelectItem>
+                                <SelectItem value="Elétrica">
+                                  Elétrica
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="color"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Cor</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ex: Vermelha" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="observations"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Observações</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Detalhes adicionais..."
+                              className="resize-none"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex gap-3 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={handleCloseDialog}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="submit"
+                        className="flex-1 bg-[#8B0000] hover:bg-[#6B0000] text-white"
+                        disabled={form.formState.isSubmitting}
+                      >
+                        {form.formState.isSubmitting
+                          ? "Salvando..."
+                          : editingId
+                          ? "Salvar Alterações"
+                          : "Cadastrar Moto"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
           </div>
 
-          {/* Tabela de Motos */}
-          <div className="rounded-lg border border-border bg-card">
+          <div className="rounded-lg border border-border bg-card shadow-sm">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Foto</TableHead>
                     <TableHead>Moto</TableHead>
                     <TableHead className="hidden sm:table-cell">Ano</TableHead>
-                    <TableHead className="hidden md:table-cell">KM</TableHead>
                     <TableHead>Preço</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {motos.map((moto) => (
-                    <TableRow key={moto.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {moto.brand} {moto.model}
-                          </p>
-                          <p className="text-sm text-muted-foreground sm:hidden">
-                            {moto.year} - {moto.km.toLocaleString("pt-BR")} km
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">{moto.year}</TableCell>
-                      <TableCell className="hidden md:table-cell">{moto.km.toLocaleString("pt-BR")} km</TableCell>
-                      <TableCell className="font-medium text-[#8B0000]">
-                        R$ {moto.price.toLocaleString("pt-BR")}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(moto)} aria-label="Editar moto">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(moto.id)}
-                            aria-label="Excluir moto"
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center">
+                        Carregando...
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : motos.length > 0 ? (
+                    motos.map((moto: any) => (
+                      <TableRow key={moto.id}>
+                        <TableCell>
+                          <div className="relative h-10 w-16 overflow-hidden rounded bg-muted">
+                            {moto.image_url ? (
+                              <img
+                                src={moto.image_url}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-xs">
+                                Sem foto
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">
+                            {moto.brand} {moto.model}
+                          </div>
+                          <div className="text-xs text-muted-foreground sm:hidden">
+                            {moto.year}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          {moto.year}
+                        </TableCell>
+                        <TableCell className="font-medium text-[#8B0000]">
+                          {new Intl.NumberFormat("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          }).format(moto.price)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(moto)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(moto.id)}
+                              className="text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center">
+                        Nenhuma moto cadastrada.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
-
-            {motos.length === 0 && (
-              <div className="py-12 text-center">
-                <p className="text-muted-foreground">Nenhuma moto cadastrada.</p>
-                <Button onClick={handleOpenNewDialog} className="mt-4 bg-[#8B0000] hover:bg-[#6B0000] text-white">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Cadastrar primeira moto
-                </Button>
-              </div>
-            )}
           </div>
-
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Total: {motos.length} moto{motos.length !== 1 ? "s" : ""} cadastrada
-            {motos.length !== 1 ? "s" : ""}
-          </p>
         </div>
       </main>
     </div>
-  )
+  );
 }
