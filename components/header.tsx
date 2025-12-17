@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import {
   Menu, // Voltamos com o ícone padrão para garantir visibilidade
   Phone,
-  Search,
   Instagram,
   Home,
   Bike,
@@ -102,13 +101,6 @@ export function Header() {
               ></span>
             </Link>
           ))}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-slate-500 hover:text-[#0f52ba]"
-          >
-            <Search className="w-5 h-5" />
-          </Button>
         </nav>
 
         {/* --- MENU MOBILE (BOTÃO VISÍVEL) --- */}

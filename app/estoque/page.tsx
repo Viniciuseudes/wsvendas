@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
 
 export const revalidate = 0;
-const ITEMS_PER_PAGE = 12; // Mostra um pouco mais de motos nesta página dedicada
+const ITEMS_PER_PAGE = 12;
 
 // --- LÓGICA DE BUSCA COM FILTROS ---
 async function getStockMotorcycles(params: {
@@ -24,7 +24,7 @@ async function getStockMotorcycles(params: {
   let query = supabase
     .from("motorcycles")
     .select("*", { count: "exact" })
-    .eq("sold", false) // Apenas disponíveis
+    .eq("sold", false)
     .order("display_order", { ascending: true })
     .order("created_at", { ascending: false })
     .range(from, to);
@@ -37,24 +37,17 @@ async function getStockMotorcycles(params: {
   if (params.minKm) query = query.gte("km", params.minKm);
   if (params.maxKm) query = query.lte("km", params.maxKm);
 
-  // 3. Filtro de Marcas (Lógica Inteligente)
+  // 3. Filtro de Marcas
   if (params.brands) {
     const selected = params.brands.split(",");
     const mainBrands = ["Honda", "Yamaha", "Shineray"];
 
-    // Se "Outras" estiver selecionado
     if (selected.includes("Outras")) {
-      // Se tiver selecionado "Honda" E "Outras", queremos: Tudo MENOS (Yamaha e Shineray)
-      // Ou seja, excluímos as marcas principais que NÃO foram selecionadas
       const excludedBrands = mainBrands.filter((b) => !selected.includes(b));
-
       if (excludedBrands.length > 0) {
-        // Exclui apenas as marcas principais que o usuário NÃO marcou
         query = query.not("brand", "in", `(${excludedBrands.join(",")})`);
       }
-      // Se excludedBrands for vazio (selecionou tudo + outras), não precisa filtrar nada (mostra tudo)
     } else {
-      // Se "Outras" NÃO está marcado, filtra apenas as marcas selecionadas
       query = query.in("brand", selected);
     }
   }
@@ -66,7 +59,6 @@ async function getStockMotorcycles(params: {
     return { motos: [], total: 0 };
   }
 
-  // Mapeamento dos dados
   const motos: Motorcycle[] = data.map((item) => ({
     id: item.id,
     brand: item.brand,
@@ -103,12 +95,14 @@ export default async function EstoquePage({
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Header />
 
-      {/* Cabeçalho da Página */}
-      <div className="bg-[#0f52ba] py-12 text-white">
-        <div className="container mx-auto px-4">
-          <h1 className="text-3xl font-bold md:text-4xl">Nosso Estoque</h1>
-          <p className="mt-2 text-blue-100">
-            Encontre a moto perfeita para o seu dia a dia ou lazer.
+      {/* --- CABEÇALHO ATUALIZADO (Azul Premium/Degradê) --- */}
+      <div className="bg-gradient-to-r from-blue-900 to-blue-800 py-16 text-white shadow-lg">
+        <div className="container mx-auto px-4 text-center md:text-left">
+          <h1 className="text-3xl font-black md:text-5xl tracking-tight mb-4">
+            Nosso Estoque
+          </h1>
+          <p className="text-lg md:text-xl text-blue-100 font-light max-w-2xl">
+            Encontre a moto perfeita para o seu dia a dia ou lazer.{" "}
           </p>
         </div>
       </div>
@@ -116,47 +110,55 @@ export default async function EstoquePage({
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* BARRA LATERAL (Desktop) */}
-          <aside className="hidden lg:block w-64 flex-shrink-0">
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 sticky top-24">
+          <aside className="hidden lg:block w-72 flex-shrink-0">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-24">
               <StockFilters />
             </div>
           </aside>
 
-          {/* FILTROS MOBILE (Botão + Sheet) */}
+          {/* FILTROS MOBILE */}
           <div className="lg:hidden mb-4">
             <Sheet>
               <SheetTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full gap-2 border-blue-200 text-blue-800 bg-blue-50"
+                  className="w-full gap-2 border-blue-200 text-blue-800 bg-blue-50 h-12 text-lg font-semibold"
                 >
-                  <Filter className="w-4 h-4" />
-                  Filtrar Resultados
+                  <Filter className="w-5 h-5" />
+                  Filtrar e Ordenar
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[300px] sm:w-[400px]">
-                <div className="py-4">
-                  <h2 className="font-bold text-lg mb-4">Filtros</h2>
+              <SheetContent
+                side="left"
+                className="w-[300px] sm:w-[400px] overflow-y-auto"
+              >
+                <div className="py-6">
+                  <h2 className="font-bold text-xl mb-6 text-slate-900">
+                    Filtros
+                  </h2>
                   <StockFilters />
                 </div>
               </SheetContent>
             </Sheet>
           </div>
 
-          {/* GRADE DE MOTOS */}
+          {/* GRADE DE RESULTADOS */}
           <div className="flex-1">
             <div className="mb-6 flex items-center justify-between">
               <span className="text-sm text-muted-foreground font-medium">
-                {total} motos encontradas
+                Mostrando <strong>{motos.length}</strong> de{" "}
+                <strong>{total}</strong> ofertas
               </span>
             </div>
 
             <MotorcycleGrid motorcycles={motos} />
 
-            <PaginationControl
-              currentPage={currentPage}
-              totalPages={totalPages}
-            />
+            <div className="mt-12">
+              <PaginationControl
+                currentPage={currentPage}
+                totalPages={totalPages}
+              />
+            </div>
           </div>
         </div>
       </main>

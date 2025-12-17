@@ -1,19 +1,27 @@
 import { Facebook, Instagram, Youtube, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 export function Footer() {
   return (
-    // Fundo Slate-950 (Quase preto)
-    <footer id="contato" className="bg-slate-950 text-slate-300">
+    <footer
+      id="contato"
+      className="bg-slate-950 text-slate-300 border-t border-slate-900"
+    >
       <div className="container mx-auto px-4 py-12">
         <div className="grid gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           {/* Coluna 1: Marca e Sobre */}
           <div className="flex flex-col gap-4">
-            <Link
-              href="/"
-              className="text-3xl font-black italic tracking-tighter text-white"
-            >
-              WS<span className="text-amber-500">VENDAS</span>
+            <Link href="/" className="inline-block">
+              <div className="relative h-12 w-48">
+                <Image
+                  src="/logowsb.png"
+                  alt="WS Vendas Logo"
+                  fill
+                  className="object-contain object-left"
+                  priority
+                />
+              </div>
             </Link>
             <p className="text-sm text-slate-500 leading-relaxed">
               Sua referência em motos novas e seminovas em Ouricuri e toda
@@ -28,7 +36,7 @@ export function Footer() {
 
             <div className="flex flex-col gap-3">
               <div className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                <MapPin className="h-5 w-5 text-white mt-0.5 shrink-0" />
                 <address className="not-italic text-sm leading-relaxed">
                   Ouricuri - Pernambuco
                   <br />
@@ -41,8 +49,10 @@ export function Footer() {
                 target="_blank"
                 className="flex items-center gap-3 hover:text-white transition-colors group"
               >
-                <Phone className="h-5 w-5 text-amber-500 group-hover:text-green-500 transition-colors" />
-                <span className="font-bold text-lg">(87) 9 9205-7899</span>
+                <Phone className="h-5 w-5 text-white group-hover:text-green-500 transition-colors" />
+                <span className="font-bold text-lg text-slate-200 group-hover:text-white">
+                  (87) 9 9205-7899
+                </span>
               </a>
             </div>
           </div>
@@ -54,32 +64,18 @@ export function Footer() {
               <a
                 href="https://www.instagram.com/wsmotopecaseacessorios_?igsh=MWczYTkwZmpnb29tbg=="
                 target="_blank"
-                className="p-3 bg-slate-900 rounded-lg hover:bg-gradient-to-tr hover:from-amber-600 hover:to-purple-600 hover:text-white transition-all duration-300 border border-slate-800 hover:border-transparent group"
+                className="p-3 bg-slate-900 rounded-lg hover:bg-white hover:text-slate-950 transition-all duration-300 border border-slate-800 hover:border-transparent group"
                 aria-label="Instagram"
               >
                 <Instagram className="h-5 w-5" />
               </a>
-              <a
-                href="#"
-                className="p-3 bg-slate-900 rounded-lg hover:bg-blue-600 hover:text-white transition-all duration-300 border border-slate-800 hover:border-transparent"
-                aria-label="Facebook"
-              >
-                <Facebook className="h-5 w-5" />
-              </a>
-              <a
-                href="#"
-                className="p-3 bg-slate-900 rounded-lg hover:bg-red-600 hover:text-white transition-all duration-300 border border-slate-800 hover:border-transparent"
-                aria-label="YouTube"
-              >
-                <Youtube className="h-5 w-5" />
-              </a>
             </div>
           </div>
 
-          {/* Coluna 4: Localização (Mapa Pequeno) */}
+          {/* Coluna 4: Localização (Mapa Corrigido) */}
           <div className="flex flex-col gap-4">
             <h4 className="text-white font-bold text-lg">Localização</h4>
-            <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-sm">
+            <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-sm relative">
               <iframe
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4003.511360162517!2d-40.09028612493519!3d-7.889592792133098!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x79ff3001c3dcb7f%3A0x4f7851d0832b1b5d!2sws%20pe%C3%A7as%20e%20acess%C3%B3rios!5e1!3m2!1spt-BR!2sbr!4v1765904747077!5m2!1spt-BR!2sbr"
                 width="100%"
@@ -92,9 +88,10 @@ export function Footer() {
               ></iframe>
               <div className="p-2 text-center">
                 <a
-                  href="https://maps.google.com"
+                  href="https://www.google.com/maps/search/WS+Vendas+Ouricuri"
                   target="_blank"
-                  className="text-xs text-amber-500 hover:underline"
+                  rel="noopener noreferrer"
+                  className="text-xs text-white hover:underline font-medium"
                 >
                   Abrir no Google Maps
                 </a>
@@ -108,7 +105,7 @@ export function Footer() {
             © {new Date().getFullYear()} WS Vendas. Todos os direitos
             reservados.
           </p>
-          <p>Desenvolvido com tecnologia de ponta; Por Vinicius Eudes .</p>
+          <p>Desenvolvido com tecnologia de ponta; Por Vinicius Eudes.</p>
         </div>
       </div>
     </footer>

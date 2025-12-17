@@ -1,218 +1,202 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useState, useEffect, useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Filter, X } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { X, Trash2 } from "lucide-react";
 
-const MAIN_BRANDS = ["Honda", "Yamaha", "Shineray"];
+// Configurações dos Sliders
+const PRICE_LIMITS = { min: 0, max: 80000, step: 1000 };
+const KM_LIMITS = { min: 0, max: 100000, step: 1000 };
 
 export function StockFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isMounted = useRef(false);
 
   // Estados locais
-  const [minPrice, setMinPrice] = useState(searchParams.get("minPrice") || "");
-  const [maxPrice, setMaxPrice] = useState(searchParams.get("maxPrice") || "");
-  const [minKm, setMinKm] = useState(searchParams.get("minKm") || "");
-  const [maxKm, setMaxKm] = useState(searchParams.get("maxKm") || "");
+  const [brands, setBrands] = useState<string[]>([]);
+  const [priceRange, setPriceRange] = useState([
+    PRICE_LIMITS.min,
+    PRICE_LIMITS.max,
+  ]);
+  const [kmRange, setKmRange] = useState([KM_LIMITS.min, KM_LIMITS.max]);
 
-  // Estado das marcas (array de strings)
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(() => {
+  // 1. Carrega filtros da URL ao iniciar
+  useEffect(() => {
+    if (isMounted.current) return; // Evita re-setar se já montou
+
     const brandsParam = searchParams.get("brands");
-    return brandsParam ? brandsParam.split(",") : [];
-  });
+    if (brandsParam) setBrands(brandsParam.split(","));
 
-  // Aplica os filtros na URL
-  const applyFilters = () => {
-    const params = new URLSearchParams(searchParams.toString());
+    const minP = Number(searchParams.get("minPrice")) || PRICE_LIMITS.min;
+    const maxP = Number(searchParams.get("maxPrice")) || PRICE_LIMITS.max;
+    setPriceRange([minP, maxP]);
 
-    if (minPrice) params.set("minPrice", minPrice);
-    else params.delete("minPrice");
-    if (maxPrice) params.set("maxPrice", maxPrice);
-    else params.delete("maxPrice");
-    if (minKm) params.set("minKm", minKm);
-    else params.delete("minKm");
-    if (maxKm) params.set("maxKm", maxKm);
-    else params.delete("maxKm");
+    const minK = Number(searchParams.get("minKm")) || KM_LIMITS.min;
+    const maxK = Number(searchParams.get("maxKm")) || KM_LIMITS.max;
+    setKmRange([minK, maxK]);
 
-    if (selectedBrands.length > 0) {
-      params.set("brands", selectedBrands.join(","));
-    } else {
-      params.delete("brands");
-    }
+    isMounted.current = true;
+  }, [searchParams]);
 
-    // Reseta para a página 1 ao filtrar
-    params.set("page", "1");
+  // 2. Efeito Automático (Debounce)
+  useEffect(() => {
+    if (!isMounted.current) return;
 
-    router.push(`/estoque?${params.toString()}`);
-  };
+    // Cria um timer para atualizar a URL apenas quando o usuário parar de mexer
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams();
 
-  // Handler para checkbox de marcas
-  const handleBrandChange = (brand: string, checked: boolean) => {
-    setSelectedBrands((prev) =>
-      checked ? [...prev, brand] : prev.filter((b) => b !== brand)
+      // Marcas
+      if (brands.length > 0) params.set("brands", brands.join(","));
+
+      // Preço
+      if (priceRange[0] > PRICE_LIMITS.min)
+        params.set("minPrice", priceRange[0].toString());
+      if (priceRange[1] < PRICE_LIMITS.max)
+        params.set("maxPrice", priceRange[1].toString());
+
+      // Km
+      if (kmRange[0] > KM_LIMITS.min)
+        params.set("minKm", kmRange[0].toString());
+      if (kmRange[1] < KM_LIMITS.max)
+        params.set("maxKm", kmRange[1].toString());
+
+      // Mantém na página 1 ao filtrar
+      params.set("page", "1");
+
+      router.push(`/estoque?${params.toString()}`, { scroll: false });
+    }, 500); // Espera 500ms
+
+    return () => clearTimeout(timer); // Limpa timer se usuário mexer de novo antes dos 500ms
+  }, [brands, priceRange, kmRange, router]);
+
+  // Funções Auxiliares
+  const toggleBrand = (brand: string) => {
+    setBrands((prev) =>
+      prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]
     );
   };
 
   const clearFilters = () => {
-    setMinPrice("");
-    setMaxPrice("");
-    setMinKm("");
-    setMaxKm("");
-    setSelectedBrands([]);
+    setBrands([]);
+    setPriceRange([PRICE_LIMITS.min, PRICE_LIMITS.max]);
+    setKmRange([KM_LIMITS.min, KM_LIMITS.max]);
     router.push("/estoque");
   };
 
+  const hasActiveFilters =
+    brands.length > 0 ||
+    priceRange[0] > PRICE_LIMITS.min ||
+    priceRange[1] < PRICE_LIMITS.max ||
+    kmRange[0] > KM_LIMITS.min ||
+    kmRange[1] < KM_LIMITS.max;
+
+  const formatMoney = (val: number) =>
+    val.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      maximumFractionDigits: 0,
+    });
+
+  const formatKm = (val: number) => `${val.toLocaleString("pt-BR")} km`;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
-          <Filter className="w-5 h-5" /> Filtros
+    <div className="space-y-8">
+      {/* --- BOTÃO DE LIMPAR (Só aparece se tiver filtro) --- */}
+      {hasActiveFilters && (
+        <Button
+          variant="destructive"
+          onClick={clearFilters}
+          className="w-full font-bold shadow-sm"
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Remover Filtros
+        </Button>
+      )}
+
+      {/* --- SEÇÃO DE MARCAS --- */}
+      <div>
+        <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+          Marcas
+          {brands.length > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {brands.length}
+            </Badge>
+          )}
         </h3>
-        {(minPrice ||
-          maxPrice ||
-          minKm ||
-          maxKm ||
-          selectedBrands.length > 0) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearFilters}
-            className="text-red-500 h-8 px-2"
-          >
-            Limpar <X className="w-3 h-3 ml-1" />
-          </Button>
-        )}
+        <div className="space-y-3">
+          {["Honda", "Yamaha", "Shineray", "Outras"].map((brand) => (
+            <div key={brand} className="flex items-center space-x-2">
+              <Checkbox
+                id={brand}
+                checked={brands.includes(brand)}
+                onCheckedChange={() => toggleBrand(brand)}
+              />
+              <Label
+                htmlFor={brand}
+                className="text-sm font-medium leading-none cursor-pointer text-slate-600"
+              >
+                {brand}
+              </Label>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <Accordion
-        type="multiple"
-        defaultValue={["price", "km", "brands"]}
-        className="w-full"
-      >
-        {/* --- FILTRO DE PREÇO --- */}
-        <AccordionItem value="price">
-          <AccordionTrigger>Faixa de Preço</AccordionTrigger>
-          <AccordionContent>
-            <div className="grid grid-cols-2 gap-2 p-1">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Mínimo (R$)
-                </Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={minPrice}
-                  onChange={(e) => setMinPrice(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Máximo (R$)
-                </Label>
-                <Input
-                  type="number"
-                  placeholder="Sem limite"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(e.target.value)}
-                />
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
+      <Separator />
 
-        {/* --- FILTRO DE QUILOMETRAGEM --- */}
-        <AccordionItem value="km">
-          <AccordionTrigger>Quilometragem</AccordionTrigger>
-          <AccordionContent>
-            <div className="grid grid-cols-2 gap-2 p-1">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Mínimo (km)
-                </Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={minKm}
-                  onChange={(e) => setMinKm(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Máximo (km)
-                </Label>
-                <Input
-                  type="number"
-                  placeholder="Qualquer"
-                  value={maxKm}
-                  onChange={(e) => setMaxKm(e.target.value)}
-                />
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
+      {/* --- SLIDER DE PREÇO --- */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-900">Faixa de Preço</h3>
+        </div>
 
-        {/* --- FILTRO DE MARCAS --- */}
-        <AccordionItem value="brands">
-          <AccordionTrigger>Marcas</AccordionTrigger>
-          <AccordionContent>
-            <div className="space-y-3 pt-2">
-              {MAIN_BRANDS.map((brand) => (
-                <div key={brand} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`brand-${brand}`}
-                    checked={selectedBrands.includes(brand)}
-                    onCheckedChange={(checked) =>
-                      handleBrandChange(brand, checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor={`brand-${brand}`}
-                    className="font-normal cursor-pointer"
-                  >
-                    {brand}
-                  </Label>
-                </div>
-              ))}
+        <Slider
+          defaultValue={[PRICE_LIMITS.min, PRICE_LIMITS.max]}
+          max={PRICE_LIMITS.max}
+          step={PRICE_LIMITS.step}
+          min={PRICE_LIMITS.min}
+          value={priceRange}
+          onValueChange={setPriceRange}
+          className="py-4"
+        />
 
-              {/* Opção OUTRAS */}
-              <div className="flex items-center space-x-2 pt-2 border-t mt-2">
-                <Checkbox
-                  id="brand-Outras"
-                  checked={selectedBrands.includes("Outras")}
-                  onCheckedChange={(checked) =>
-                    handleBrandChange("Outras", checked as boolean)
-                  }
-                />
-                <Label
-                  htmlFor="brand-Outras"
-                  className="font-normal cursor-pointer text-muted-foreground"
-                >
-                  Outras Marcas
-                </Label>
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+        <div className="flex items-center justify-between mt-2 text-sm text-slate-600 font-medium">
+          <span>{formatMoney(priceRange[0])}</span>
+          <span>{formatMoney(priceRange[1])}</span>
+        </div>
+      </div>
 
-      <Button
-        onClick={applyFilters}
-        className="w-full bg-[#0f52ba] hover:bg-blue-700 font-bold"
-      >
-        Aplicar Filtros
-      </Button>
+      <Separator />
+
+      {/* --- SLIDER DE QUILOMETRAGEM --- */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-900">Quilometragem</h3>
+        </div>
+
+        <Slider
+          defaultValue={[KM_LIMITS.min, KM_LIMITS.max]}
+          max={KM_LIMITS.max}
+          step={KM_LIMITS.step}
+          min={KM_LIMITS.min}
+          value={kmRange}
+          onValueChange={setKmRange}
+          className="py-4"
+        />
+
+        <div className="flex items-center justify-between mt-2 text-sm text-slate-600 font-medium">
+          <span>{formatKm(kmRange[0])}</span>
+          <span>{formatKm(kmRange[1])}</span>
+        </div>
+      </div>
     </div>
   );
 }
