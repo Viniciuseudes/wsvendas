@@ -11,11 +11,14 @@ export interface Motorcycle {
   color: string
   plateEnd: string
   observations: string
-  sold: boolean // NOVO: Status de venda
-  displayOrder: number // NOVO: Ordem de exibição
+  sold: boolean
+  displayOrder: number
+  // --- NOVOS CAMPOS ---
+  startType: string // Partida
+  displacement: number // Cilindradas
 }
 
-// Dados mockados (apenas para evitar erros de build se o banco estiver vazio)
+// Dados mockados atualizados
 export const motorcycles: Motorcycle[] = [
   {
     id: "1",
@@ -31,6 +34,8 @@ export const motorcycles: Motorcycle[] = [
     plateEnd: "5",
     observations: "Sem sinistro.",
     sold: false,
-    displayOrder: 1
+    displayOrder: 1,
+    startType: "Elétrica",
+    displacement: 300
   },
 ]

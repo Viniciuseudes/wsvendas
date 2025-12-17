@@ -52,7 +52,6 @@ import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import type { Motorcycle } from "@/lib/data";
-// BIBLIOTECA DE DRAG AND DROP (Compatível com Celular)
 import {
   DragDropContext,
   Droppable,
@@ -60,19 +59,22 @@ import {
   DropResult,
 } from "@hello-pangea/dnd";
 
-// --- SCHEMA ---
+// --- SCHEMA ATUALIZADO ---
 const motorcycleSchema = z.object({
   brand: z.string().min(2, "Marca obrigatória"),
   model: z.string().min(2, "Modelo obrigatório"),
-  year: z.string().regex(/^\d{4}\/\d{4}$/, "Formato AAAA/AAAA (ex: 2022/2023)"),
+  year: z.string().regex(/^\d{4}\/\d{4}$/, "Formato AAAA/AAAA"),
   km: z.coerce.number().min(0),
   price: z.coerce.number().min(1, "Preço inválido"),
-  images: z.array(z.string()).min(1, "Pelo menos 1 foto é obrigatória"),
+  images: z.array(z.string()).min(1, "Pelo menos 1 foto obrigatória"),
   transmission: z.string(),
   fuel: z.string(),
   color: z.string().min(2, "Cor obrigatória"),
   plateEnd: z.string().length(1, "Apenas 1 dígito"),
   observations: z.string().optional(),
+  // NOVOS CAMPOS
+  startType: z.string(),
+  displacement: z.coerce.number().min(1, "Cilindrada obrigatória"),
 });
 
 type MotorcycleFormValues = z.infer<typeof motorcycleSchema>;
@@ -84,8 +86,6 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  // Estado para garantir que o DND só carregue no cliente (evita erro de Hydration)
   const [isMounted, setIsMounted] = useState(false);
 
   const form = useForm<MotorcycleFormValues>({
@@ -102,6 +102,8 @@ export default function AdminPage() {
       color: "",
       plateEnd: "",
       observations: "",
+      startType: "Elétrica",
+      displacement: 0,
     },
   });
 
@@ -112,56 +114,54 @@ export default function AdminPage() {
 
   async function fetchMotorcycles() {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("motorcycles")
-      .select("*")
-      .order("display_order", { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from("motorcycles")
+        .select("*")
+        .order("display_order", { ascending: true });
 
-    if (error) {
-      toast.error("Erro ao carregar motos.");
-      console.error(error);
-    } else {
+      if (error) throw error;
+
       const normalizedData = (data as any[]).map((item) => ({
         ...item,
         imageUrls: item.images || (item.image_url ? [item.image_url] : []),
         displayOrder: item.display_order || 9999,
         sold: item.sold || false,
+        plateEnd: item.plate_end || "",
+        observations: item.observations || "",
+        // Mapeia snake_case do banco para camelCase do form
+        startType: item.start_type || "Elétrica",
+        displacement: item.displacement || 0,
       }));
       setMotos(normalizedData);
+    } catch (error: any) {
+      console.error("Erro Fetch:", error);
+      toast.error("Erro ao buscar dados.");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }
 
-  // --- NOVA LÓGICA DE ARRASTAR (FUNCIONA EM MOBILE) ---
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
-
-    // Reordenar localmente
     const items = Array.from(motos);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
-
     setMotos(items);
 
-    // Salvar no banco
     try {
       const updates = items.map((moto, index) => ({
         id: moto.id,
         display_order: index,
       }));
-
-      await Promise.all(
-        updates.map((update) =>
-          supabase
-            .from("motorcycles")
-            .update({ display_order: update.display_order })
-            .eq("id", update.id)
-        )
-      );
-      toast.success("Ordem atualizada!");
+      for (const update of updates) {
+        await supabase
+          .from("motorcycles")
+          .update({ display_order: update.display_order })
+          .eq("id", update.id);
+      }
     } catch (error) {
-      console.error("Erro ao salvar ordem:", error);
-      toast.error("Erro de conexão ao salvar ordem.");
+      console.error(error);
     }
   };
 
@@ -170,7 +170,6 @@ export default function AdminPage() {
     setMotos((prev) =>
       prev.map((m) => (m.id === moto.id ? { ...m, sold: newStatus } : m))
     );
-
     const { error } = await supabase
       .from("motorcycles")
       .update({ sold: newStatus })
@@ -180,9 +179,7 @@ export default function AdminPage() {
       toast.error("Erro ao atualizar status.");
       fetchMotorcycles();
     } else {
-      toast.success(
-        newStatus ? "Marcada como Vendida!" : "Marcada como Disponível!"
-      );
+      toast.success(newStatus ? "Vendida!" : "Disponível!");
     }
   };
 
@@ -190,7 +187,7 @@ export default function AdminPage() {
     e.preventDefault();
     if (passwordInput === "abrobreira123") {
       setIsAuthenticated(true);
-      toast.success("Bem-vindo ao Painel!");
+      toast.success("Bem-vindo!");
     } else {
       toast.error("Senha incorreta.");
     }
@@ -202,52 +199,59 @@ export default function AdminPage() {
         (max, m) => Math.max(max, m.displayOrder || 0),
         0
       );
-      const dbData = {
+
+      // Prepara objeto para o banco (snake_case)
+      const dbData: any = {
         brand: values.brand,
         model: values.model,
         year: values.year,
         km: values.km,
         price: values.price,
         images: values.images,
-        image_url: values.images[0],
         transmission: values.transmission,
         fuel: values.fuel,
         color: values.color,
         plate_end: values.plateEnd,
         observations: values.observations,
-        display_order: editingId ? undefined : maxOrder + 1,
+        sold: false,
+        // NOVOS CAMPOS
+        start_type: values.startType,
+        displacement: values.displacement,
       };
 
-      if (editingId) delete dbData.display_order;
+      if (values.images.length > 0) dbData.image_url = values.images[0];
+      if (!editingId) dbData.display_order = maxOrder + 1;
 
+      let error = null;
       if (editingId) {
-        const { error } = await supabase
+        const res = await supabase
           .from("motorcycles")
           .update(dbData)
           .eq("id", editingId);
-        if (error) throw error;
-        toast.success("Moto atualizada!");
+        error = res.error;
       } else {
-        const { error } = await supabase.from("motorcycles").insert(dbData);
-        if (error) throw error;
-        toast.success("Moto cadastrada!");
+        const res = await supabase.from("motorcycles").insert(dbData);
+        error = res.error;
       }
 
+      if (error) throw error;
+
+      toast.success(editingId ? "Moto atualizada!" : "Moto cadastrada!");
       await fetchMotorcycles();
       handleCloseDialog();
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao salvar moto.");
+    } catch (err: any) {
+      console.error("Erro detalhado:", err);
+      alert(`Erro: ${err.message}`);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir esta moto?")) {
+    if (confirm("Excluir esta moto?")) {
       const { error } = await supabase
         .from("motorcycles")
         .delete()
         .eq("id", id);
-      if (error) toast.error("Erro ao excluir.");
+      if (error) toast.error("Erro: " + error.message);
       else {
         toast.success("Moto excluída.");
         fetchMotorcycles();
@@ -257,20 +261,21 @@ export default function AdminPage() {
 
   const handleEdit = (moto: any) => {
     setEditingId(moto.id);
-    const imagesList =
-      moto.imageUrls && moto.imageUrls.length > 0 ? moto.imageUrls : [];
     form.reset({
-      brand: moto.brand,
-      model: moto.model,
-      year: moto.year,
-      km: moto.km,
-      price: moto.price,
-      images: imagesList,
-      transmission: moto.transmission,
-      fuel: moto.fuel,
-      color: moto.color,
-      plateEnd: moto.plateEnd,
+      brand: moto.brand || "",
+      model: moto.model || "",
+      year: moto.year || "",
+      km: moto.km || 0,
+      price: moto.price || 0,
+      images: moto.imageUrls || [],
+      transmission: moto.transmission || "Manual",
+      fuel: moto.fuel || "Gasolina",
+      color: moto.color || "",
+      plateEnd: moto.plateEnd || "",
       observations: moto.observations || "",
+      // Preenche novos campos
+      startType: moto.startType || "Elétrica",
+      displacement: moto.displacement || 0,
     });
     setIsDialogOpen(true);
   };
@@ -289,6 +294,8 @@ export default function AdminPage() {
       color: "",
       plateEnd: "",
       observations: "",
+      startType: "Elétrica",
+      displacement: 0,
     });
     setIsDialogOpen(true);
   };
@@ -298,7 +305,7 @@ export default function AdminPage() {
     form.reset();
   };
 
-  if (!isMounted) return null; // Evita erro de Hydration
+  if (!isMounted) return null;
 
   if (!isAuthenticated) {
     return (
@@ -306,7 +313,7 @@ export default function AdminPage() {
         <div className="w-full max-w-md rounded-lg border bg-background p-8 shadow-lg">
           <div className="mb-6 flex flex-col items-center gap-2 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <Lock className="h-6 w-6 text-[#8B0000]" />
+              <Lock className="h-6 w-6 text-[#0f52ba]" />
             </div>
             <h1 className="text-2xl font-bold">Área Restrita</h1>
             <p className="text-sm text-muted-foreground">Senha de admin</p>
@@ -319,7 +326,7 @@ export default function AdminPage() {
               onChange={(e) => setPasswordInput(e.target.value)}
               className="text-center"
             />
-            <Button type="submit" className="w-full bg-[#8B0000] text-white">
+            <Button type="submit" className="w-full bg-[#0f52ba] text-white">
               Entrar
             </Button>
           </form>
@@ -353,7 +360,7 @@ export default function AdminPage() {
                 <DialogTrigger asChild>
                   <Button
                     onClick={handleOpenNewDialog}
-                    className="bg-[#8B0000] text-white"
+                    className="bg-[#0f52ba] text-white"
                   >
                     <Plus className="mr-2 h-4 w-4" /> Nova Moto
                   </Button>
@@ -414,7 +421,7 @@ export default function AdminPage() {
                           )}
                         />
                       </div>
-                      {/* Outros campos mantidos iguais... */}
+
                       <div className="grid gap-4 sm:grid-cols-2">
                         <FormField
                           control={form.control}
@@ -443,6 +450,58 @@ export default function AdminPage() {
                           )}
                         />
                       </div>
+
+                      {/* NOVOS CAMPOS: Cilindradas e Partida */}
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="displacement"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Cilindradas (cc)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="Ex: 160"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="startType"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Partida</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                value={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="Elétrica">
+                                    Elétrica
+                                  </SelectItem>
+                                  <SelectItem value="Pedal">Pedal</SelectItem>
+                                  <SelectItem value="Elétrica e Pedal">
+                                    Elétrica e Pedal
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
                       <div className="grid gap-4 sm:grid-cols-2">
                         <FormField
                           control={form.control}
@@ -471,6 +530,7 @@ export default function AdminPage() {
                           )}
                         />
                       </div>
+
                       <div className="grid gap-4 sm:grid-cols-2">
                         <FormField
                           control={form.control}
@@ -533,6 +593,7 @@ export default function AdminPage() {
                           )}
                         />
                       </div>
+
                       <FormField
                         control={form.control}
                         name="color"
@@ -559,6 +620,7 @@ export default function AdminPage() {
                           </FormItem>
                         )}
                       />
+
                       <div className="flex gap-3 pt-4">
                         <Button
                           type="button"
@@ -570,7 +632,7 @@ export default function AdminPage() {
                         </Button>
                         <Button
                           type="submit"
-                          className="flex-1 bg-[#8B0000] text-white"
+                          className="flex-1 bg-[#0f52ba] text-white"
                           disabled={form.formState.isSubmitting}
                         >
                           {form.formState.isSubmitting
@@ -607,13 +669,7 @@ export default function AdminPage() {
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                       >
-                        {isLoading ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="h-24 text-center">
-                              Carregando...
-                            </TableCell>
-                          </TableRow>
-                        ) : motos.length > 0 ? (
+                        {motos.length > 0 ? (
                           motos.map((moto: any, index) => (
                             <Draggable
                               key={moto.id}
@@ -660,7 +716,7 @@ export default function AdminPage() {
                                       {moto.brand} {moto.model}
                                     </div>
                                     <div className="text-xs text-muted-foreground">
-                                      {moto.year}
+                                      {moto.year} • {moto.displacement}cc
                                     </div>
                                   </TableCell>
                                   <TableCell>
@@ -717,7 +773,9 @@ export default function AdminPage() {
                         ) : (
                           <TableRow>
                             <TableCell colSpan={6} className="h-24 text-center">
-                              Nenhuma moto cadastrada.
+                              {isLoading
+                                ? "Carregando..."
+                                : "Nenhuma moto cadastrada."}
                             </TableCell>
                           </TableRow>
                         )}

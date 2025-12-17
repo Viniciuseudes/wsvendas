@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import type { Metadata, ResolvingMetadata } from "next"; // Importante para o SEO/Preview
+import type { Metadata, ResolvingMetadata } from "next";
 import {
   Calendar,
   Gauge,
@@ -10,6 +10,8 @@ import {
   MessageCircle,
   Phone,
   Ban,
+  Zap, // Ícone para Partida
+  Settings, // Ícone para Cilindradas
 } from "lucide-react";
 
 import { Header } from "@/components/header";
@@ -30,7 +32,6 @@ import { ShareButton } from "@/components/share-button";
 
 export const revalidate = 0;
 
-// Função auxiliar para buscar os dados (reutilizada no Page e no Metadata)
 async function getMotorcycle(id: string): Promise<Motorcycle | null> {
   const { data, error } = await supabase
     .from("motorcycles")
@@ -62,10 +63,12 @@ async function getMotorcycle(id: string): Promise<Motorcycle | null> {
     observations: data.observations,
     sold: data.sold || false,
     displayOrder: data.display_order || 0,
+    // NOVOS CAMPOS
+    startType: data.start_type || "Não informada",
+    displacement: data.displacement || 0,
   };
 }
 
-// --- AQUI ESTÁ A MÁGICA DO PREVIEW (WHATSAPP/INSTAGRAM) ---
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> },
   parent: ResolvingMetadata
@@ -84,31 +87,17 @@ export async function generateMetadata(
     currency: "BRL",
   }).format(moto.price);
 
-  const title = `${moto.brand} ${moto.model} - ${price}`;
-  const description = `${moto.year} • ${moto.km}km • ${moto.color}. ${
-    moto.observations || "Confira os detalhes dessa moto incrível!"
-  }`;
-  const mainImage = moto.imageUrls[0] || "/placeholder.jpg"; // Garante que tenha imagem
-
   return {
-    title: title,
-    description: description,
+    title: `${moto.brand} ${moto.model} - ${price}`,
+    description: `${moto.year} • ${moto.displacement}cc • ${moto.km}km. ${
+      moto.observations || "Confira!"
+    }`,
     openGraph: {
-      title: title,
-      description: description,
-      images: [mainImage], // Essa é a foto que aparece no WhatsApp
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: title,
-      description: description,
-      images: [mainImage],
+      images: [moto.imageUrls[0] || "/placeholder.jpg"],
     },
   };
 }
 
-// --- PÁGINA PRINCIPAL ---
 export default async function MotoPage({
   params,
 }: {
@@ -141,15 +130,14 @@ export default async function MotoPage({
               Voltar para o estoque
             </Link>
 
-            {/* Passamos os dados completos para o botão */}
             <ShareButton
               title={`${motorcycle.brand} ${motorcycle.model}`}
-              text={`Olha essa máquina que vi na WS Vendas: ${motorcycle.model} por ${formattedPrice}`}
+              text={`Olha essa máquina: ${motorcycle.model} (${motorcycle.displacement}cc) por ${formattedPrice}`}
             />
           </div>
 
           <div className="grid gap-8 lg:grid-cols-2">
-            {/* CARROSSEL DE FOTOS */}
+            {/* CARROSSEL */}
             <div className="space-y-4">
               <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-gray-100 relative">
                 {motorcycle.sold && (
@@ -190,26 +178,24 @@ export default async function MotoPage({
                   </div>
                 )}
               </div>
-
               <p className="text-center text-sm text-gray-500">
-                {motorcycle.imageUrls.length} fotos disponíveis - Deslize para
-                ver mais
+                {motorcycle.imageUrls.length} fotos disponíveis
               </p>
             </div>
 
-            {/* INFORMAÇÕES */}
+            {/* INFO */}
             <div className="flex flex-col space-y-6">
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Badge
                     variant="outline"
-                    className="border-primary/20 text-primary bg-primary/5"
+                    className="text-primary bg-primary/5"
                   >
                     {motorcycle.brand}
                   </Badge>
-                  {motorcycle.sold && (
-                    <Badge variant="destructive">Indisponível</Badge>
-                  )}
+                  <Badge variant="secondary" className="bg-slate-100">
+                    {motorcycle.displacement}cc
+                  </Badge>
                 </div>
 
                 <h1 className="text-3xl font-bold text-gray-900 lg:text-4xl">
@@ -227,15 +213,7 @@ export default async function MotoPage({
                 )}
               </div>
 
-              {motorcycle.sold ? (
-                <div className="p-4 bg-red-50 border border-red-100 rounded-lg text-center text-red-800">
-                  <Ban className="mx-auto h-6 w-6 mb-2 text-red-600" />
-                  <p className="font-bold">Esta moto já foi vendida.</p>
-                  <p className="text-sm">
-                    Entre em contato para saber sobre modelos similares.
-                  </p>
-                </div>
-              ) : (
+              {!motorcycle.sold && (
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
                     size="lg"
@@ -243,7 +221,7 @@ export default async function MotoPage({
                     asChild
                   >
                     <Link
-                      href={`https://wa.me/5587992057899?text=Olá, tenho interesse na ${motorcycle.brand} ${motorcycle.model} anunciada por ${formattedPrice}`}
+                      href={`https://wa.me/5587992057899?text=Olá, interesse na ${motorcycle.model} (${motorcycle.displacement}cc)`}
                       target="_blank"
                     >
                       <MessageCircle className="h-5 w-5" />
@@ -253,7 +231,7 @@ export default async function MotoPage({
                   <Button
                     size="lg"
                     variant="outline"
-                    className="w-full gap-2 border-gray-300"
+                    className="w-full gap-2"
                     asChild
                   >
                     <Link href="tel:+5587992057899">
@@ -266,6 +244,7 @@ export default async function MotoPage({
 
               <Separator />
 
+              {/* GRID DE ESPECIFICAÇÕES ATUALIZADO */}
               <div className="grid grid-cols-2 gap-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Ano</span>
@@ -275,23 +254,32 @@ export default async function MotoPage({
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground">
-                    Quilometragem
-                  </span>
+                  <span className="text-xs text-muted-foreground">Km</span>
                   <div className="flex items-center font-medium">
                     <Gauge className="mr-2 h-4 w-4 text-primary" />
                     {formattedKm} km
                   </div>
                 </div>
+
+                {/* NOVOS ÍCONES E CAMPOS */}
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Motor</span>
+                  <div className="flex items-center font-medium">
+                    <Settings className="mr-2 h-4 w-4 text-primary" />
+                    {motorcycle.displacement} cc
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Partida</span>
+                  <div className="flex items-center font-medium">
+                    <Zap className="mr-2 h-4 w-4 text-primary" />
+                    {motorcycle.startType}
+                  </div>
+                </div>
+
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Câmbio</span>
                   <p className="font-medium">{motorcycle.transmission}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground">
-                    Combustível
-                  </span>
-                  <p className="font-medium">{motorcycle.fuel}</p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Cor</span>
@@ -299,9 +287,15 @@ export default async function MotoPage({
                 </div>
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">
-                    Final da Placa
+                    Placa Final
                   </span>
                   <p className="font-medium">{motorcycle.plateEnd}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">
+                    Combustível
+                  </span>
+                  <p className="font-medium">{motorcycle.fuel}</p>
                 </div>
               </div>
 
@@ -311,14 +305,13 @@ export default async function MotoPage({
                   Observações
                 </div>
                 <p className="text-sm leading-relaxed text-gray-600">
-                  {motorcycle.observations}
+                  {motorcycle.observations || "Nenhuma observação adicional."}
                 </p>
               </div>
             </div>
           </div>
         </div>
       </main>
-
       <Footer />
     </div>
   );
