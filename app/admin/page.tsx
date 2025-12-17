@@ -10,6 +10,7 @@ import { ImageUpload } from "@/components/image-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import Link from "next/link"; // Importei Link
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,7 @@ import {
   Lock,
   ImageIcon,
   GripVertical,
+  LayoutDashboard, // Importei o ícone do Dashboard
 } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
@@ -59,7 +61,7 @@ import {
   DropResult,
 } from "@hello-pangea/dnd";
 
-// --- SCHEMA ATUALIZADO ---
+// --- SCHEMA ---
 const motorcycleSchema = z.object({
   brand: z.string().min(2, "Marca obrigatória"),
   model: z.string().min(2, "Modelo obrigatório"),
@@ -72,7 +74,6 @@ const motorcycleSchema = z.object({
   color: z.string().min(2, "Cor obrigatória"),
   plateEnd: z.string().length(1, "Apenas 1 dígito"),
   observations: z.string().optional(),
-  // NOVOS CAMPOS
   startType: z.string(),
   displacement: z.coerce.number().min(1, "Cilindrada obrigatória"),
 });
@@ -129,7 +130,6 @@ export default function AdminPage() {
         sold: item.sold || false,
         plateEnd: item.plate_end || "",
         observations: item.observations || "",
-        // Mapeia snake_case do banco para camelCase do form
         startType: item.start_type || "Elétrica",
         displacement: item.displacement || 0,
       }));
@@ -200,7 +200,6 @@ export default function AdminPage() {
         0
       );
 
-      // Prepara objeto para o banco (snake_case)
       const dbData: any = {
         brand: values.brand,
         model: values.model,
@@ -214,7 +213,6 @@ export default function AdminPage() {
         plate_end: values.plateEnd,
         observations: values.observations,
         sold: false,
-        // NOVOS CAMPOS
         start_type: values.startType,
         displacement: values.displacement,
       };
@@ -273,7 +271,6 @@ export default function AdminPage() {
       color: moto.color || "",
       plateEnd: moto.plateEnd || "",
       observations: moto.observations || "",
-      // Preenche novos campos
       startType: moto.startType || "Elétrica",
       displacement: moto.displacement || 0,
     });
@@ -349,13 +346,26 @@ export default function AdminPage() {
                 {motos.length} motos registradas
               </p>
             </div>
-            <div className="flex gap-2">
+            {/* GRUPO DE BOTÕES ATUALIZADO */}
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                asChild
+              >
+                <Link href="/admin/dashboard">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Link>
+              </Button>
+
               <Button
                 variant="outline"
                 onClick={() => window.open("/vendidas", "_blank")}
               >
                 Ver Pág. Vendidas
               </Button>
+
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -366,6 +376,7 @@ export default function AdminPage() {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+                  {/* ... FORMULÁRIO (CONTEÚDO DA DIALOG) MANTIDO ... */}
                   <DialogHeader>
                     <DialogTitle>
                       {editingId ? "Editar Moto" : "Cadastrar Nova Moto"}

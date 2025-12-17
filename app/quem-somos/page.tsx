@@ -27,13 +27,19 @@ export default function QuemSomosPage() {
       <Header />
 
       <main className="flex-1">
-        {/* Banner Institucional - ALTERADO PARA AZUL */}
-        <div className="bg-blue-700 py-16 text-white">
-          <div className="container mx-auto px-4 text-center">
-            <h1 className="text-3xl font-bold md:text-5xl">
+        {/* Banner Institucional - VISUAL DARK PREMIUM APLICADO */}
+        <div className="relative w-full bg-slate-900 py-20 overflow-hidden shadow-lg">
+          {/* Background Pattern sutil */}
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff33_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+          {/* Glow Dourado sutil no fundo */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-amber-500/20 blur-[120px] rounded-full pointer-events-none"></div>
+
+          <div className="container relative mx-auto px-4 text-center z-10">
+            <h1 className="text-3xl font-black md:text-5xl tracking-tight mb-6 text-white">
               Tradição, Confiança e Qualidade
             </h1>
-            <p className="mt-4 text-lg text-white/90 md:text-xl max-w-2xl mx-auto">
+            <p className="text-lg md:text-xl text-slate-300 font-light max-w-2xl mx-auto leading-relaxed">
               Sua melhor opção para compra de motos novas e seminovas em
               Ouricuri e toda a Região do Araripe.
             </p>

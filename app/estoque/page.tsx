@@ -95,13 +95,20 @@ export default async function EstoquePage({
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Header />
 
-      {/* --- CABEÇALHO ATUALIZADO (Azul Premium/Degradê) --- */}
-      <div className="bg-gradient-to-r from-blue-900 to-blue-800 py-16 text-white shadow-lg">
-        <div className="container mx-auto px-4 text-center md:text-left">
-          <h1 className="text-3xl font-black md:text-5xl tracking-tight mb-4">
+      {/* --- CABEÇALHO NOVO (ESTILO HERO SEARCH) --- */}
+      <div className="relative w-full bg-slate-900 py-16 overflow-hidden shadow-lg">
+        {/* Background Pattern sutil */}
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff33_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+        {/* Glow Dourado sutil no fundo */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-amber-500/20 blur-[120px] rounded-full pointer-events-none"></div>
+
+        <div className="container relative mx-auto px-4 text-center md:text-left z-10">
+          <h1 className="text-3xl font-black md:text-5xl tracking-tight mb-4 text-white">
             Nosso Estoque
           </h1>
-          <p className="text-lg md:text-xl text-blue-100 font-light max-w-2xl">
+          {/* Ajustei a cor do texto para slate-300 para combinar com o fundo escuro */}
+          <p className="text-lg md:text-xl text-slate-300 font-light max-w-2xl">
             Encontre a moto perfeita para o seu dia a dia ou lazer.{" "}
           </p>
         </div>
