@@ -1,26 +1,41 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
 
-// Configuração correta da fonte para carregar em todos os dispositivos
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans", // Cria a variável CSS para o Tailwind usar
-  display: "swap",
-});
+const inter = Inter({ subsets: ["latin"] });
+
+const BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL || "https://wsvendasmotos.vercel.app/";
 
 export const metadata: Metadata = {
-  title: "WSVENDAS - Motos Premium",
-  description: "Qualidade, procedência e as melhores condições do mercado.",
-};
-
-// Configuração essencial para funcionar o zoom e escala no iPhone/Android
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: "WS Vendas | Motos Seminovas e Novas",
+    template: "%s | WS Vendas", // Isso cria títulos automáticos tipo "Honda XRE 300 | WS Vendas"
+  },
+  description:
+    "Encontre a moto dos seus sonhos com procedência e garantia. Confira nosso estoque atualizado de seminovas.",
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: BASE_URL,
+    siteName: "WS Vendas",
+    images: [
+      {
+        url: "/og-image-padrao.jpg", // Crie uma imagem padrão 1200x630px e coloque na pasta public
+        width: 1200,
+        height: 630,
+        alt: "WS Vendas - Estoque de Motos",
+      },
+    ],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
@@ -29,10 +44,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={inter.variable}>
-      <body className="font-sans antialiased bg-background text-foreground overflow-x-hidden">
-        {children}
-        <Analytics />
+    <html lang="pt-BR">
+      <body className={inter.className}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <Toaster />
+          <Sonner />
+        </ThemeProvider>
       </body>
     </html>
   );

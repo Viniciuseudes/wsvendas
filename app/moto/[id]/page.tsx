@@ -9,9 +9,8 @@ import {
   ChevronLeft,
   MessageCircle,
   Phone,
-  Ban,
-  Zap, // Ícone para Partida
-  Settings, // Ícone para Cilindradas
+  Zap,
+  Settings,
 } from "lucide-react";
 
 import { Header } from "@/components/header";
@@ -31,6 +30,10 @@ import type { Motorcycle } from "@/lib/data";
 import { ShareButton } from "@/components/share-button";
 
 export const revalidate = 0;
+
+// URL base para garantir que imagens apareçam no WhatsApp (fallback se não tiver env)
+const BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL || "https://wsvendas.vercel.app";
 
 async function getMotorcycle(id: string): Promise<Motorcycle | null> {
   const { data, error } = await supabase
@@ -63,12 +66,12 @@ async function getMotorcycle(id: string): Promise<Motorcycle | null> {
     observations: data.observations,
     sold: data.sold || false,
     displayOrder: data.display_order || 0,
-    // NOVOS CAMPOS
     startType: data.start_type || "Não informada",
     displacement: data.displacement || 0,
   };
 }
 
+// --- 1. SEO PARA COMPARTILHAMENTO (WhatsApp, Facebook, etc) ---
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> },
   parent: ResolvingMetadata
@@ -87,13 +90,44 @@ export async function generateMetadata(
     currency: "BRL",
   }).format(moto.price);
 
+  const title = `${moto.brand} ${moto.model} - ${price}`;
+  const description = `Ano ${moto.year} • ${moto.displacement}cc • ${
+    moto.km
+  }km. ${moto.observations || "Confira todos os detalhes!"}`;
+
+  // Pega imagem anterior do site como fallback ou usa a da moto
+  const previousImages = (await parent).openGraph?.images || [];
+  const mainImage = moto.imageUrls[0]
+    ? moto.imageUrls[0].startsWith("http")
+      ? moto.imageUrls[0]
+      : `${BASE_URL}${moto.imageUrls[0]}`
+    : "/placeholder.jpg";
+
   return {
-    title: `${moto.brand} ${moto.model} - ${price}`,
-    description: `${moto.year} • ${moto.displacement}cc • ${moto.km}km. ${
-      moto.observations || "Confira!"
-    }`,
+    title: title,
+    description: description,
     openGraph: {
-      images: [moto.imageUrls[0] || "/placeholder.jpg"],
+      title: title,
+      description: description,
+      url: `${BASE_URL}/moto/${moto.id}`,
+      siteName: "WS Vendas",
+      images: [
+        {
+          url: mainImage,
+          width: 1200,
+          height: 630,
+          alt: `${moto.brand} ${moto.model}`,
+        },
+        ...previousImages,
+      ],
+      locale: "pt_BR",
+      type: "article",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: title,
+      description: description,
+      images: [mainImage],
     },
   };
 }
@@ -115,9 +149,61 @@ export default async function MotoPage({
 
   const formattedKm = new Intl.NumberFormat("pt-BR").format(motorcycle.km);
 
+  // --- 2. DADOS ESTRUTURADOS (JSON-LD) PARA O GOOGLE ---
+  // Isso faz o Google entender que é um PRODUTO com PREÇO e ESTOQUE
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Vehicle", // Mais específico que Product
+    name: `${motorcycle.brand} ${motorcycle.model}`,
+    image: motorcycle.imageUrls,
+    description:
+      motorcycle.observations ||
+      `Moto ${motorcycle.brand} ${motorcycle.model} ano ${motorcycle.year}`,
+    brand: {
+      "@type": "Brand",
+      name: motorcycle.brand,
+    },
+    vehicleConfiguration: motorcycle.model,
+    vehicleEngine: {
+      "@type": "EngineSpecification",
+      engineDisplacement: {
+        "@type": "QuantitativeValue",
+        value: motorcycle.displacement,
+        unitCode: "CMQ", // Centímetros Cúbicos
+      },
+    },
+    color: motorcycle.color,
+    mileageFromOdometer: {
+      "@type": "QuantitativeValue",
+      value: motorcycle.km,
+      unitCode: "KMT",
+    },
+    vehicleModelDate: motorcycle.year.split("/")[0], // Pega o primeiro ano se for 2022/2023
+    offers: {
+      "@type": "Offer",
+      url: `${BASE_URL}/moto/${motorcycle.id}`,
+      priceCurrency: "BRL",
+      price: motorcycle.price,
+      itemCondition: "https://schema.org/UsedCondition",
+      availability: motorcycle.sold
+        ? "https://schema.org/OutOfStock"
+        : "https://schema.org/InStock",
+      seller: {
+        "@type": "Organization",
+        name: "WS Vendas",
+      },
+    },
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Header />
+
+      {/* Injeção do Script JSON-LD para SEO Avançado */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       <main className="flex-1 py-8">
         <div className="container mx-auto px-4">
@@ -261,7 +347,7 @@ export default async function MotoPage({
                   </div>
                 </div>
 
-                {/* NOVOS ÍCONES E CAMPOS */}
+                {/* NOVOS ÍCONES E CAMPOS MANTIDOS */}
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Motor</span>
                   <div className="flex items-center font-medium">
