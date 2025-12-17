@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -10,31 +10,24 @@ const inter = Inter({ subsets: ["latin"] });
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL || "https://wsvendasmotos.vercel.app/";
 
+export const viewport: Viewport = {
+  themeColor: "#000000",
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
     default: "WS Vendas | Motos Seminovas e Novas",
-    template: "%s | WS Vendas", // Isso cria títulos automáticos tipo "Honda XRE 300 | WS Vendas"
+    template: "%s | WS Vendas",
   },
-  description:
-    "Encontre a moto dos seus sonhos com procedência e garantia. Confira nosso estoque atualizado de seminovas.",
-  openGraph: {
-    type: "website",
-    locale: "pt_BR",
-    url: BASE_URL,
-    siteName: "WS Vendas",
-    images: [
-      {
-        url: "/og-image-padrao.jpg", // Crie uma imagem padrão 1200x630px e coloque na pasta public
-        width: 1200,
-        height: 630,
-        alt: "WS Vendas - Estoque de Motos",
-      },
-    ],
-  },
-  robots: {
-    index: true,
-    follow: true,
+  description: "Encontre a moto dos seus sonhos com procedência e garantia.",
+  // Configurações para o iOS reconhecer o modo App
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "WS Admin",
   },
 };
 
@@ -44,7 +37,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/* Força o iOS a ler o manifesto que aponta para o /admin */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+      </head>
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
